@@ -4,15 +4,15 @@ import { colors } from '../config/colors';
 
 interface DeepResearchChatContainerProps {
     history: ChatHistory;
-    modelId: 'modelA' | 'modelB';
-    modelUuid?: string;
+    agentId: 'agentA' | 'agentB';
+    agentUuid?: string;
     sessionId?: string;
 }
 
 export const DeepResearchChatContainer = ({ 
     history, 
-    modelId, 
-    modelUuid,
+    agentId, 
+    agentUuid,
     sessionId,
 }: DeepResearchChatContainerProps) => {
     return (
@@ -21,8 +21,8 @@ export const DeepResearchChatContainer = ({
                 <div key={`message-${index}`} className="mb-6">
                     <DeepResearchChatMessage 
                         message={message} 
-                        modelId={modelId} 
-                        modelUuid={modelUuid}
+                        agentId={agentId} 
+                        agentUuid={agentUuid}
                         sessionId={sessionId}
                     />
                 </div>

@@ -1,36 +1,36 @@
-export interface ModelOutput {
+export interface AgentOutput {
     content: string;
     passages: any[];
-    reasoning?: string;
+    intermediate?: string;
 }
 
 export interface StreamingResponse {
-    modelA: ModelOutput;
-    modelB: ModelOutput;
+    agentA: AgentOutput;
+    agentB: AgentOutput;
     metadata?: {
         passages_a: any[];
         passages_b: any[];
-        selected_models?: any[];
-        model1_type?: 'baseline' | 'perplexity';
-        model2_type?: 'baseline' | 'perplexity';
+        selected_agents?: any[];
+        agent1_type?: 'baseline' | 'perplexity';
+        agent2_type?: 'baseline' | 'perplexity';
     };
     final?: boolean;
-    model1?: string;
-    model2?: string;
-    model1_complete?: boolean;
-    model2_complete?: boolean;
-    modelA_updated?: boolean;
-    modelB_updated?: boolean;
-    modelA_isReasoning?: boolean;
-    modelB_isReasoning?: boolean;
+    agent1?: string;
+    agent2?: string;
+    agent1_complete?: boolean;
+    agent2_complete?: boolean;
+    agentA_updated?: boolean;
+    agentB_updated?: boolean;
+    agentA_isIntermediate?: boolean;
+    agentB_isIntermediate?: boolean;
     heartbeat?: boolean;
     message?: string;
     test_message?: string;
 }
 
-export interface ModelOutputs {
-    modelA: ModelOutput;
-    modelB: ModelOutput;
+export interface AgentOutputs {
+    agentA: AgentOutput;
+    agentB: AgentOutput;
 }
 
 export interface ConversationTurn {
@@ -39,26 +39,26 @@ export interface ConversationTurn {
 }
 
 export interface ConversationHistory {
-    modelA: ConversationTurn[];
-    modelB: ConversationTurn[];
+    agentA: ConversationTurn[];
+    agentB: ConversationTurn[];
 }
 
-export interface ModelDetails {
-    ModelA: string;
-    ModelB: string;
+export interface AgentDetails {
+    AgentA: string;
+    AgentB: string;
 }
 
 export interface SessionData {
     sessionId?: string | null;
     currentQuestion: string;
     selectedChoice: string;
-    selectedModels?: any[];
+    selectedAgents?: any[];
     selectedTeams?: any[];
 }
 
 export type ChoiceType = 'choice1' | 'choice2' | 'choice3' | 'choice4';
 
-export interface LeaderboardRow {
+export interface RankingRow {
     rank: number;
     systemname: string;
     stepupvote: number;
@@ -79,9 +79,9 @@ export interface Citation {
 export interface ChatMessage {
     role: 'user' | 'assistant';
     content: MessageContent[];
-    reasoning?: string;
+    intermediate?: string;
     citations?: Citation[];
-    isReasoning?: boolean;
+    isIntermediate?: boolean;
     isComplete?: boolean;
 }
 

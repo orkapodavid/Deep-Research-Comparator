@@ -1,35 +1,35 @@
 import { useState, useEffect } from 'react';
-import { LeaderboardRow } from '../types';
+import { RankingRow } from '../types';
 import { colors } from '../config/colors';
 
-export const Leaderboard = () => {
-    const [leaderboardData, setLeaderboardData] = useState<LeaderboardRow[]>([]);
+export const Ranking = () => {
+    const [rankingData, setRankingData] = useState<RankingRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetchLeaderboardData = async () => {
+        const fetchRankingData = async () => {
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/leaderboard`);
+                const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/ranking`);
                 if (!response.ok) {
-                    throw new Error('Failed to fetch leaderboard data');
+                    throw new Error('Failed to fetch ranking data');
                 }
                 const data = await response.json();
                 
-                if (data.status === 'success' && Array.isArray(data.leaderboard)) {
-                    setLeaderboardData(data.leaderboard);
+                if (data.status === 'success' && Array.isArray(data.ranking)) {
+                    setRankingData(data.ranking);
                 } else {
-                    throw new Error('Invalid leaderboard data format');
+                    throw new Error('Invalid ranking data format');
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'An error occurred');
-                console.error('Leaderboard error:', err);
+                console.error('Ranking error:', err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchLeaderboardData();
+        fetchRankingData();
     }, []);
 
     if (loading) {
@@ -77,7 +77,7 @@ export const Leaderboard = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#DBE2EF] bg-[#F9F7F7]">
-                        {leaderboardData.map((row, index) => (
+                        {rankingData.map((row, index) => (
                             <tr 
                                 key={`${row.systemname}-${row.rank}`} 
                                 className={`hover:bg-[#DBE2EF] transition-colors ${index < 3 ? 'bg-opacity-90' : ''}`}

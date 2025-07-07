@@ -2,41 +2,41 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-interface ReasoningStepProps {
+interface IntermediateStepProps {
   text: string;
   index: number;
-  modelId: 'modelA' | 'modelB';
+  agentId: 'agentA' | 'agentB';
   isLastStep?: boolean;
-  modelUuid?: string;
+  agentUuid?: string;
   sessionId?: string;
 }
 
-export const PerplexityReasoningStep: React.FC<ReasoningStepProps> = ({ text, index, modelId, isLastStep = false, modelUuid, sessionId }) => {
+export const PerplexityIntermediateStep: React.FC<IntermediateStepProps> = ({ text, index, agentId, isLastStep = false, agentUuid, sessionId }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
 
   const handleVote = async (vote: 'up' | 'down') => {
     if (hasVoted) return; // Prevent multiple votes
 
-    if (!modelUuid) {
-        console.error('Model UUID not provided for voting on reasoning step.');
+    if (!agentUuid) {
+        console.error('Agent UUID not provided for voting on intermediate step.');
         return;
     }
 
     if (!sessionId) {
-      console.error('Session ID not provided for voting on reasoning step.');
+      console.error('Session ID not provided for voting on intermediate step.');
       return;
     }
 
     const payload = {
         vote,
         step_text: text,
-        model_uuid: modelUuid,
+        agent_uuid: agentUuid,
         session_id: sessionId,
     };
 
     try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/reasoning-step-vote`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/intermediate-step-vote`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -64,7 +64,7 @@ export const PerplexityReasoningStep: React.FC<ReasoningStepProps> = ({ text, in
       }`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      key={`reasoning-step-${index}-${modelId}`}
+      key={`intermediate-step-${index}-${agentId}`}
     >
       <div className={isLastStep ? 'animate-typing' : ''}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { QuestionInput } from './QuestionInput';
 import { ChoiceButtons } from './ChoiceButtons';
-import { DeepResearchModelDetails } from './AgentDetails.tsx';
+import { DeepResearchAgentDetails } from './AgentDetails.tsx';
 import { SessionData, ChoiceType, ChatHistory, ChatMessage } from '../types';
 import { colors } from '../config/colors';
 import { streamResponse } from '../utils/streaming.ts';
 import { DeepResearchChatContainer } from './ChatContainer.tsx';
 
-interface ModelInfo {
+interface AgentInfo {
     name: string;
     id: string;
 }
@@ -17,56 +17,56 @@ export const DeepResearchPage = () => {
         sessionId: null,
         currentQuestion: '',
         selectedChoice: '',
-        selectedModels: [],
+        selectedAgents: [],
     });
-    const [modelDetails, setModelDetails] = useState<{ ModelA: ModelInfo | null, ModelB: ModelInfo | null }>({
-        ModelA: null,
-        ModelB: null,
+    const [agentDetails, setAgentDetails] = useState<{ AgentA: AgentInfo | null, AgentB: AgentInfo | null }>({
+        AgentA: null,
+        AgentB: null,
     });
     const [isQuestionDisabled, setIsQuestionDisabled] = useState(true);
     const [isChoiceDisabled, setIsChoiceDisabled] = useState(true);
     const [hasAnswered, setHasAnswered] = useState(false);
     const [conversationHistory, setConversationHistory] = useState<{
-        modelA: ChatHistory;
-        modelB: ChatHistory;
+        agentA: ChatHistory;
+        agentB: ChatHistory;
     }>({
-        modelA: { messages: [] },
-        modelB: { messages: [] }
+        agentA: { messages: [] },
+        agentB: { messages: [] }
     });
 
     useEffect(() => {
-        initializeModels();
+        initializeAgents();
     }, []);
 
-    const initializeModels = async () => {
+    const initializeAgents = async () => {
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/deepresearch-models`, {
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/deepresearch-agents`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
             });
             const data = await response.json();
 
             if (data.error) {
-                console.error('Error fetching models:', data.error);
+                console.error('Error fetching agents:', data.error);
                 return;
             }
 
-            // Store model/embedding info in state, but we'll send it with each request
+            // Store agent/embedding info in state, but we'll send it with each request
             setSessionData(prev => ({ 
                 ...prev, 
-                selectedModels: data.models,
+                selectedAgents: data.agents,
                 sessionId: data.session_id,
             }));
             setIsQuestionDisabled(false);
             setIsChoiceDisabled(true);
-            setModelDetails({ ModelA: null, ModelB: null });
+            setAgentDetails({ AgentA: null, AgentB: null });
             setHasAnswered(false);
             setConversationHistory({
-                modelA: { messages: [] },
-                modelB: { messages: [] }
+                agentA: { messages: [] },
+                agentB: { messages: [] }
             });
         } catch (error) {
-            console.error('Error fetching models:', error);
+            console.error('Error fetching agents:', error);
         }
     };
     
@@ -82,39 +82,39 @@ export const DeepResearchPage = () => {
             // Add user message to conversation histories first
             setConversationHistory(prev => {
                 // Create initial empty assistant messages
-                const modelAMessage: ChatMessage = {
+                const agentAMessage: ChatMessage = {
                     role: 'assistant',
                     content: [{ text: '' }],
-                    reasoning: '',
-                    isReasoning: true
+                    intermediate: '',
+                    isIntermediate: true
                 };
-                const modelBMessage: ChatMessage = {
+                const agentBMessage: ChatMessage = {
                     role: 'assistant',
                     content: [{ text: '' }],
-                    reasoning: '',
-                    isReasoning: true
+                    intermediate: '',
+                    isIntermediate: true
                 };
 
                 const newState = {
-                    modelA: {
-                        messages: [...prev.modelA.messages, userMessage, modelAMessage]
+                    agentA: {
+                        messages: [...prev.agentA.messages, userMessage, agentAMessage]
                     },
-                    modelB: {
-                        messages: [...prev.modelB.messages, userMessage, modelBMessage]
+                    agentB: {
+                        messages: [...prev.agentB.messages, userMessage, agentBMessage]
                     }
                 };
 
                 return newState;
             });
             
-            // Prepare payload with conversation history and model info
+            // Prepare payload with conversation history and agent info
             const payload = {
                 question,
-                conversation_a: conversationHistory.modelA.messages,
-                conversation_b: conversationHistory.modelB.messages,
-                selected_models: {
-                    modelA: sessionData.selectedModels?.[0]?.id,
-                    modelB: sessionData.selectedModels?.[1]?.id
+                conversation_a: conversationHistory.agentA.messages,
+                conversation_b: conversationHistory.agentB.messages,
+                selected_agents: {
+                    agentA: sessionData.selectedAgents?.[0]?.id,
+                    agentB: sessionData.selectedAgents?.[1]?.id
                 }
             };
             
@@ -129,61 +129,61 @@ export const DeepResearchPage = () => {
                         return;
                     }
                     
-                    // Update model A content only if it was updated in this chunk
-                    if (chunk.modelA_updated) {                        
+                    // Update agent A content only if it was updated in this chunk
+                    if (chunk.agentA_updated) {                        
                         setConversationHistory(prev => {
-                            const modelAMessages = [...prev.modelA.messages];
-                            const assistantMsgIndex = modelAMessages.length - 1;
+                            const agentAMessages = [...prev.agentA.messages];
+                            const assistantMsgIndex = agentAMessages.length - 1;
                             if (assistantMsgIndex >= 0) {
-                                const assistantMsg = { ...modelAMessages[assistantMsgIndex] };
+                                const assistantMsg = { ...agentAMessages[assistantMsgIndex] };
                                 
-                                // The backend now sends modelA.content (final) and modelA.reasoning (think) separately
-                                // The modelA_isReasoning flag indicates which phase the model is in.
-                                assistantMsg.content = [{ text: chunk.modelA.content || '' }];
-                                // Only update reasoning if new reasoning content is provided, preserve existing reasoning otherwise
-                                if (chunk.modelA.reasoning) {
-                                    assistantMsg.reasoning = chunk.modelA.reasoning;
-                                } else if (assistantMsg.reasoning === undefined) {
-                                    assistantMsg.reasoning = '';
+                                // The backend now sends agentA.content (final) and agentA.intermediate (think) separately
+                                // The agentA_isIntermediate flag indicates which phase the agent is in.
+                                assistantMsg.content = [{ text: chunk.agentA.content || '' }];
+                                // Only update intermediate if new intermediate content is provided, preserve existing intermediate otherwise
+                                if (chunk.agentA.intermediate) {
+                                    assistantMsg.intermediate = chunk.agentA.intermediate;
+                                } else if (assistantMsg.intermediate === undefined) {
+                                    assistantMsg.intermediate = '';
                                 }
-                                if (chunk.modelA.citations) {
-                                    assistantMsg.citations = chunk.modelA.citations;
+                                if (chunk.agentA.citations) {
+                                    assistantMsg.citations = chunk.agentA.citations;
                                 }
-                                assistantMsg.isReasoning = chunk.modelA_isReasoning;
-                                assistantMsg.isComplete = chunk.modelA_complete;
+                                assistantMsg.isIntermediate = chunk.agentA_isIntermediate;
+                                assistantMsg.isComplete = chunk.agentA_complete;
 
-                                modelAMessages[assistantMsgIndex] = assistantMsg;
+                                agentAMessages[assistantMsgIndex] = assistantMsg;
                             }
-                            return { ...prev, modelA: { messages: modelAMessages } };
+                            return { ...prev, agentA: { messages: agentAMessages } };
                         });
                     }
                     
-                    // Update model B content only if it was updated in this chunk
-                    if (chunk.modelB_updated) {                        
+                    // Update agent B content only if it was updated in this chunk
+                    if (chunk.agentB_updated) {                        
                         setConversationHistory(prev => {
-                            const modelBMessages = [...prev.modelB.messages];
-                            const assistantMsgIndex = modelBMessages.length - 1;
+                            const agentBMessages = [...prev.agentB.messages];
+                            const assistantMsgIndex = agentBMessages.length - 1;
                             if (assistantMsgIndex >= 0) {
-                                const assistantMsg = { ...modelBMessages[assistantMsgIndex] };
+                                const assistantMsg = { ...agentBMessages[assistantMsgIndex] };
 
-                                // The backend now sends modelB.content (final) and modelB.reasoning (think) separately
-                                // The modelB_isReasoning flag indicates which phase the model is in.
-                                assistantMsg.content = [{ text: chunk.modelB.content || '' }];
-                                // Only update reasoning if new reasoning content is provided, preserve existing reasoning otherwise
-                                if (chunk.modelB.reasoning) {
-                                    assistantMsg.reasoning = chunk.modelB.reasoning;
-                                } else if (assistantMsg.reasoning === undefined) {
-                                    assistantMsg.reasoning = '';
+                                // The backend now sends agentB.content (final) and agentB.intermediate (think) separately
+                                // The agentB_isIntermediate flag indicates which phase the agent is in.
+                                assistantMsg.content = [{ text: chunk.agentB.content || '' }];
+                                // Only update intermediate if new intermediate content is provided, preserve existing intermediate otherwise
+                                if (chunk.agentB.intermediate) {
+                                    assistantMsg.intermediate = chunk.agentB.intermediate;
+                                } else if (assistantMsg.intermediate === undefined) {
+                                    assistantMsg.intermediate = '';
                                 }
-                                if (chunk.modelB.citations) {
-                                    assistantMsg.citations = chunk.modelB.citations;
+                                if (chunk.agentB.citations) {
+                                    assistantMsg.citations = chunk.agentB.citations;
                                 }
-                                assistantMsg.isReasoning = chunk.modelB_isReasoning;
-                                assistantMsg.isComplete = chunk.modelB_complete;
+                                assistantMsg.isIntermediate = chunk.agentB_isIntermediate;
+                                assistantMsg.isComplete = chunk.agentB_complete;
                                 
-                                modelBMessages[assistantMsgIndex] = assistantMsg;
+                                agentBMessages[assistantMsgIndex] = assistantMsg;
                             }
-                            return { ...prev, modelB: { messages: modelBMessages } };
+                            return { ...prev, agentB: { messages: agentBMessages } };
                         });
                     }
                     
@@ -195,7 +195,7 @@ export const DeepResearchPage = () => {
 
                     if (chunk.metadata) {
                         const metadata = chunk.metadata as any;
-                        if (metadata.selected_models) {
+                        if (metadata.selected_agents) {
                         }
                     }
                 }
@@ -218,9 +218,9 @@ export const DeepResearchPage = () => {
                 body: JSON.stringify({
                     choice,
                     question : sessionData.currentQuestion,
-                    conversation_a: conversationHistory.modelA.messages,
-                    conversation_b: conversationHistory.modelB.messages,
-                    selected_models: sessionData.selectedModels,
+                    conversation_a: conversationHistory.agentA.messages,
+                    conversation_b: conversationHistory.agentB.messages,
+                    selected_agents: sessionData.selectedAgents,
                     session_id: sessionData.sessionId,
                 }),
             });
@@ -231,10 +231,10 @@ export const DeepResearchPage = () => {
                 return;
             }
 
-            // Update model details with the response data
-            setModelDetails({
-                ModelA: data.ModelA || null,
-                ModelB: data.ModelB || null,
+            // Update agent details with the response data
+            setAgentDetails({
+                AgentA: data.AgentA || null,
+                AgentB: data.AgentB || null,
             });
             setIsQuestionDisabled(true);
             setIsChoiceDisabled(true);
@@ -251,24 +251,24 @@ export const DeepResearchPage = () => {
     return (
         <div className="w-full">
             <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-                {/* Model A */}
+                {/* Agent A */}
                 <div className="flex flex-col space-y-4 pl-4">
                     <h2 className="text-2xl font-bold text-center">Agent A</h2>
                     <DeepResearchChatContainer
-                        history={conversationHistory.modelA}
-                        modelId="modelA"
-                        modelUuid={sessionData.selectedModels?.[0]?.id}
+                        history={conversationHistory.agentA}
+                        agentId="agentA"
+                        agentUuid={sessionData.selectedAgents?.[0]?.id}
                         sessionId={sessionData.sessionId ?? undefined}
                     />
                 </div>
 
-                {/* Model B */}
+                {/* Agent B */}
                 <div className="flex flex-col space-y-4 pr-4">
                     <h2 className="text-2xl font-bold text-center">Agent B</h2>
                     <DeepResearchChatContainer
-                        history={conversationHistory.modelB}
-                        modelId="modelB"
-                        modelUuid={sessionData.selectedModels?.[1]?.id}
+                        history={conversationHistory.agentB}
+                        agentId="agentB"
+                        agentUuid={sessionData.selectedAgents?.[1]?.id}
                         sessionId={sessionData.sessionId ?? undefined}
                     />
                 </div>
@@ -286,7 +286,7 @@ export const DeepResearchPage = () => {
                 />
                 {hasAnswered && (
                     <div className="mt-4">
-                        <DeepResearchModelDetails details={modelDetails} />
+                        <DeepResearchAgentDetails details={agentDetails} />
                     </div>
                 )}
                 <div className="flex justify-center mt-8">

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { Leaderboard } from './components/Leaderboard';
+import { Ranking } from './components/Ranking';
 import { DeepResearchPage } from './components/Page';
 
 function App() {
@@ -16,7 +16,7 @@ function App() {
                 <Link to="/" className="text-[#F5EFE7] hover:text-white transition-colors">
                   Home
                 </Link>
-                <Link to="/leaderboard" className="text-[#F5EFE7] hover:text-white transition-colors">
+                <Link to="/ranking" className="text-[#F5EFE7] hover:text-white transition-colors">
                   Ranking
                 </Link>
               </div>
@@ -26,7 +26,7 @@ function App() {
 
         <Routes>
           <Route path="/" element={<DeepResearchPage />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/ranking" element={<Ranking />} />
         </Routes>
       </div>
     </Router>

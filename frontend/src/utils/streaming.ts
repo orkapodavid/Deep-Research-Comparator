@@ -3,36 +3,36 @@ export interface Citation {
     url: string;
 }
 
-export interface ModelOutput {
+export interface AgentOutput {
     content: string; // Will hold final answer
     passages: any[];
-    reasoning?: string; // Will hold thinking process
+    intermediate?: string; // Will hold thinking process
     citations?: Citation[];
 }
 
 export interface StreamingResponse {
-    modelA: ModelOutput;
-    modelB: ModelOutput;
+    agentA: AgentOutput;
+    agentB: AgentOutput;
     metadata?: {
         passages_a: any[];
         passages_b: any[];
-        selected_models?: any;
-        modelA_type?: string;
-        modelB_type?: string;
+        selected_agents?: any;
+        agentA_type?: string;
+        agentB_type?: string;
     };
     final?: boolean;
-    modelA_think?: string;
-    modelA_final?: string;
-    modelA_complete?: boolean;
-    modelA_citations?: Citation[];
-    modelB_think?: string;
-    modelB_final?: string;
-    modelB_complete?: boolean;
-    modelB_citations?: Citation[];
-    modelA_updated?: boolean;
-    modelB_updated?: boolean;
-    modelA_isReasoning?: boolean;
-    modelB_isReasoning?: boolean;
+    agentA_think?: string;
+    agentA_final?: string;
+    agentA_complete?: boolean;
+    agentA_citations?: Citation[];
+    agentB_think?: string;
+    agentB_final?: string;
+    agentB_complete?: boolean;
+    agentB_citations?: Citation[];
+    agentA_updated?: boolean;
+    agentB_updated?: boolean;
+    agentA_isIntermediate?: boolean;
+    agentB_isIntermediate?: boolean;
     heartbeat?: boolean;
     message?: string;
     test_message?: string;
@@ -62,17 +62,17 @@ export const streamResponse = async (
     }
 
     let buffer = '';
-    let modelAContent = '';
-    let modelBContent = '';
-    let modelAReasoning = '';
-    let modelBReasoning = '';
+    let agentAContent = '';
+    let agentBContent = '';
+    let agentAIntermediate = '';
+    let agentBIntermediate = '';
     let passages_a: any[] = [];
     let passages_b: any[] = [];
-    let modelACitations: Citation[] = [];
-    let modelBCitations: Citation[] = [];
-    let selected_models: any | undefined;
-    let modelA_type: string | undefined;
-    let modelB_type: string | undefined;
+    let agentACitations: Citation[] = [];
+    let agentBCitations: Citation[] = [];
+    let selected_agents: any | undefined;
+    let agentA_type: string | undefined;
+    let agentB_type: string | undefined;
     let rawResponse = '';
 
     console.log('Starting to read stream');
@@ -106,79 +106,79 @@ export const streamResponse = async (
                     continue; // Skip processing as a data chunk, just keep connection alive
                 }
                 
-                // Debug logging for metadata and model types
+                // Debug logging for metadata and agent types
                 if (update.metadata) {
                     console.log('Received metadata:', update.metadata);
                     passages_a = update.metadata.passages_a ?? passages_a;
                     passages_b = update.metadata.passages_b ?? passages_b;
-                    selected_models = update.metadata.selected_models ?? selected_models;
-                    modelA_type = update.metadata.modelA_type ?? modelA_type;
-                    modelB_type = update.metadata.modelB_type ?? modelB_type;
+                    selected_agents = update.metadata.selected_agents ?? selected_agents;
+                    agentA_type = update.metadata.agentA_type ?? agentA_type;
+                    agentB_type = update.metadata.agentB_type ?? agentB_type;
                 }
 
-                // Handle Model A thinking updates by replacing the content
-                if (update.modelA_think != null) {
-                    modelAReasoning = update.modelA_think;
+                // Handle Agent A thinking updates by replacing the content
+                if (update.agentA_think != null) {
+                    agentAIntermediate = update.agentA_think;
                 }
 
-                // Handle Model B thinking updates by replacing the content
-                if (update.modelB_think != null) {
-                    modelBReasoning = update.modelB_think;
+                // Handle Agent B thinking updates by replacing the content
+                if (update.agentB_think != null) {
+                    agentBIntermediate = update.agentB_think;
                 }
 
                 // Update final content if provided
-                if (update.modelA_final != null) {
-                    modelAContent = update.modelA_final.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+                if (update.agentA_final != null) {
+                    agentAContent = update.agentA_final.replace(/^```markdown\n/, '').replace(/\n```$/, '');
                 }
-                if (update.modelB_final != null) {
-                    modelBContent = update.modelB_final.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+                if (update.agentB_final != null) {
+                    agentBContent = update.agentB_final.replace(/^```markdown\n/, '').replace(/\n```$/, '');
                 }
 
-                if (update.modelA_citations && Array.isArray(update.modelA_citations)) {
-                    console.log('Received raw citations for Model A:', update.modelA_citations);
-                    modelACitations = update.modelA_citations.map((url: string) => ({ url }));
-                    console.log('Processed citations for Model A:', modelACitations);
+                if (update.agentA_citations && Array.isArray(update.agentA_citations)) {
+                    console.log('Received raw citations for Agent A:', update.agentA_citations);
+                    agentACitations = update.agentA_citations.map((url: string) => ({ url }));
+                    console.log('Processed citations for Agent A:', agentACitations);
                 }
-                if (update.modelB_citations && Array.isArray(update.modelB_citations)) {
-                    console.log('Received raw citations for Model B:', update.modelB_citations);
-                    modelBCitations = update.modelB_citations.map((url: string) => ({ url }));
-                    console.log('Processed citations for Model B:', modelBCitations);
+                if (update.agentB_citations && Array.isArray(update.agentB_citations)) {
+                    console.log('Received raw citations for Agent B:', update.agentB_citations);
+                    agentBCitations = update.agentB_citations.map((url: string) => ({ url }));
+                    console.log('Processed citations for Agent B:', agentBCitations);
                 }
 
                 // Emit updated state
                 const chunkToEmit: StreamingResponse = {
-                    modelA: {
-                        content: modelAContent,
+                    agentA: {
+                        content: agentAContent,
                         passages: passages_a,
-                        reasoning: modelAReasoning,
-                        citations: modelACitations,
+                        intermediate: agentAIntermediate,
+                        citations: agentACitations,
                     },
-                    modelB: {
-                        content: modelBContent,
+                    agentB: {
+                        content: agentBContent,
                         passages: passages_b,
-                        reasoning: modelBReasoning,
-                        citations: modelBCitations,
+                        intermediate: agentBIntermediate,
+                        citations: agentBCitations,
                     },
                     metadata: {
                         passages_a,
                         passages_b,
-                        selected_models,
-                        modelA_type,
-                        modelB_type,
+                        selected_agents,
+                        agentA_type,
+                        agentB_type,
                     },
                     final: !!update.final,
-                    modelA_think: update.modelA_think,
-                    modelA_final: update.modelA_final,
-                    modelA_complete: !!update.modelA_complete,
-                    modelA_citations: modelACitations,
-                    modelB_think: update.modelB_think,
-                    modelB_final: update.modelB_final,
-                    modelB_complete: !!update.modelB_complete,
-                    modelB_citations: modelBCitations,
-                    modelA_updated: !!update.modelA_updated,
-                    modelB_updated: !!update.modelB_updated,
-                    modelA_isReasoning: !!update.modelA_isReasoning,
-                    modelB_isReasoning: !!update.modelB_isReasoning
+                    agentA_think: update.agentA_think,
+                    agentA_final: update.agentA_final,
+                    agentA_complete: !!update.agentA_complete,
+                    agentA_citations: agentACitations,
+                    agentB_think: update.agentB_think,
+                    agentB_final: update.agentB_final,
+                    agentB_complete: !!update.agentB_complete,
+                    agentB_citations: agentBCitations,
+                    agentA_updated: !!update.agentA_updated,
+                    agentB_updated: !!update.agentB_updated,
+                    agentA_isIntermediate: !!update.agentA_isIntermediate,
+                    agentB_isIntermediate: !!update.agentB_isIntermediate
                 };
 
                 onChunk(chunkToEmit);

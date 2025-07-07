@@ -1,34 +1,34 @@
 import { colors } from '../config/colors';
 
-interface ModelInfo {
+interface AgentInfo {
     name: string;
     id: string;
 }
 
-interface DeepResearchModelDetailsProps {
+interface DeepResearchAgentDetailsProps {
     details: {
-        ModelA: ModelInfo | null;
-        ModelB: ModelInfo | null;
+        AgentA: AgentInfo | null;
+        AgentB: AgentInfo | null;
     };
 }
 
-export const DeepResearchModelDetails = ({ details }: DeepResearchModelDetailsProps) => {
-    // Only render if either ModelA or ModelB has content
-    if (!details.ModelA && !details.ModelB) {
+export const DeepResearchAgentDetails = ({ details }: DeepResearchAgentDetailsProps) => {
+    // Only render if either AgentA or AgentB has content
+    if (!details.AgentA && !details.AgentB) {
         return null;
     }
 
-    const renderDetail = (modelInfo: ModelInfo | null) => {
-        if (!modelInfo) {
+    const renderDetail = (agentInfo: AgentInfo | null) => {
+        if (!agentInfo) {
             return 'No details available';
         }
-        return `Agent Name: ${modelInfo.id}`;
+        return `Agent Name: ${agentInfo.id}`;
     };
 
     return (
         <div className="mt-4">
             <h3 className={`text-lg font-semibold mb-2 text-[${colors.primary}]`}>
-                Model Details
+                Agent Details
             </h3>
             <div className={`overflow-x-auto border border-[${colors.secondary}] rounded-lg`}>
                 <table className="min-w-full divide-y divide-[${colors.secondary}]">
@@ -48,7 +48,7 @@ export const DeepResearchModelDetails = ({ details }: DeepResearchModelDetailsPr
                                 Agent A
                             </td>
                             <td className={`px-6 py-4 text-sm text-[${colors.primary}]`}>
-                                {renderDetail(details.ModelA)}
+                                {renderDetail(details.AgentA)}
                             </td>
                         </tr>
                         <tr>
@@ -56,7 +56,7 @@ export const DeepResearchModelDetails = ({ details }: DeepResearchModelDetailsPr
                                 Agent B
                             </td>
                             <td className={`px-6 py-4 text-sm text-[${colors.primary}]`}>
-                                {renderDetail(details.ModelB)}
+                                {renderDetail(details.AgentB)}
                             </td>
                         </tr>
                     </tbody>

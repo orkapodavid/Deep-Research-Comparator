@@ -1,7 +1,7 @@
 import { ChatMessage as ChatMessageType } from '../types';
 import { colors } from '../config/colors';
 import { useEffect, useRef, useState } from 'react';
-import { ReasoningDisplay } from './IntermediateDisplay';
+import { IntermediateDisplay } from './IntermediateDisplay';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -10,12 +10,12 @@ import { Citation } from '../types';
 
 interface DeepResearchChatMessageProps {
     message: ChatMessageType;
-    modelId?: 'modelA' | 'modelB';
-    modelUuid?: string;
+    agentId?: 'agentA' | 'agentB';
+    agentUuid?: string;
     sessionId?: string;
 }
 
-export const DeepResearchChatMessage = ({ message, modelId, modelUuid, sessionId }: DeepResearchChatMessageProps) => {
+export const DeepResearchChatMessage = ({ message, agentId, agentUuid, sessionId }: DeepResearchChatMessageProps) => {
     const isUser = message.role === 'user';
     const bgColor = isUser ? colors.secondary : colors.light;
     const messageRef = useRef<HTMLDivElement>(null);
@@ -90,8 +90,8 @@ export const DeepResearchChatMessage = ({ message, modelId, modelUuid, sessionId
             return;
         }
 
-        if (!modelUuid) {
-            console.error("Model UUID is missing, cannot submit vote.");
+        if (!agentUuid) {
+            console.error("Agent UUID is missing, cannot submit vote.");
             return;
         }
 
@@ -103,7 +103,7 @@ export const DeepResearchChatMessage = ({ message, modelId, modelUuid, sessionId
         const payload = {
             vote,
             highlighted_text: selectedText,
-            model_uuid: modelUuid,
+            agent_uuid: agentUuid,
             session_id: sessionId,
         };
 
@@ -190,13 +190,13 @@ export const DeepResearchChatMessage = ({ message, modelId, modelUuid, sessionId
                     position: 'relative',
                 }}
             >
-                {/* Display reasoning steps if available and not user message */}
-                {!isUser && message.reasoning && modelId && (
-                    <ReasoningDisplay 
-                        reasoningText={message.reasoning} 
-                        modelId={modelId} 
-                        modelUuid={modelUuid}
-                        isReasoning={message.isReasoning}
+                {/* Display intermediate steps if available and not user message */}
+                {!isUser && message.intermediate && agentId && (
+                    <IntermediateDisplay 
+                        intermediateText={message.intermediate} 
+                        agentId={agentId} 
+                        agentUuid={agentUuid}
+                        isIntermediate={message.isIntermediate}
                         sessionId={sessionId}
                     />
                 )}
@@ -280,7 +280,7 @@ export const DeepResearchChatMessage = ({ message, modelId, modelUuid, sessionId
                     </>
                 )}
 
-                {!isUser && displayText === '' && !message.reasoning && (
+                {!isUser && displayText === '' && !message.intermediate && (
                     <div className="flex space-x-2 mt-2">
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>
