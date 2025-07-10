@@ -22,10 +22,10 @@ export const IntermediateDisplay = ({ intermediateText, agentId, isIntermediate 
     console.log('agentUuid', agentUuid);
 
     let intermediateSteps: string[] = [];
-    
-    if (agentUuid === "888e417d-0993-4101-a9e6-a49b308e2ccc" || agentUuid === "56098a16-58d3-46e1-91ed-15e7feefc98d") {
+     if (agentUuid === import.meta.env.VITE_PERPLEXITY_AGENT_UUID || agentUuid === import.meta.env.VITE_GPT_RESEARCHER_AGENT_UUID) {
         // For perplexity and gpt-researcher agents, split by double newlines
         const normalizedText = intermediateText.replace(/\\n/g, '\n').trim();
+        console.log('inside this if statement');
         console.log('normalizedText', normalizedText);
         
         // Split by double newlines to get all steps (including in-progress)

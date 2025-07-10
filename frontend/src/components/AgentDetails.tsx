@@ -22,7 +22,7 @@ export const DeepResearchAgentDetails = ({ details }: DeepResearchAgentDetailsPr
         if (!agentInfo) {
             return 'No details available';
         }
-        return `Agent Name: ${agentInfo.id}`;
+        return `Agent Name: ${agentInfo.name}`;
     };
 
     return (

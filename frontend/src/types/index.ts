@@ -61,10 +61,11 @@ export type ChoiceType = 'choice1' | 'choice2' | 'choice3' | 'choice4';
 export interface RankingRow {
     rank: number;
     systemname: string;
-    stepupvote: number;
-    textupvote: number;
     score: number;
     votes: number;
+    stepupvote: number;
+    textupvote: number;
+
 }
 
 export interface MessageContent {
