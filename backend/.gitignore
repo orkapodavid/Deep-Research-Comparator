@@ -1,0 +1,9 @@
+**/__pycache__/
+**/keys.env
+./myenv
+
+./app/.env
+**/.env.local
+rgvenv/
+terraform
+**/*.log

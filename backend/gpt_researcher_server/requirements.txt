@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+gpt-researcher
+python-dotenv
+aiohttp
+gunicorn 
