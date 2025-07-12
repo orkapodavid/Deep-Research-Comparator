@@ -20,36 +20,12 @@ export const IntermediateDisplay = ({ intermediateText, agentId, isIntermediate 
         return null;
     }
     console.log('agentUuid', agentUuid);
+    console.log('intermediateText', intermediateText);
+    const intermediateSteps: string[] = intermediateText
+        .split(/\|\|\|---\|\|\|/g)
+        .map(step => step.trim())
+        .filter(step => step !== '');
 
-    let intermediateSteps: string[] = [];
-     if (agentUuid === import.meta.env.VITE_PERPLEXITY_AGENT_UUID || agentUuid === import.meta.env.VITE_GPT_RESEARCHER_AGENT_UUID) {
-        // For perplexity and gpt-researcher agents, split by double newlines
-        const normalizedText = intermediateText.replace(/\\n/g, '\n').trim();
-        console.log('inside this if statement');
-        console.log('normalizedText', normalizedText);
-        
-        // Split by double newlines to get all steps (including in-progress)
-        intermediateSteps = normalizedText
-            .split('\n\n')
-            .map(step => step.trim())
-            .filter(step => step !== '');
-            
-    } else {
-        // For baseline agent, the intermediate text is a markdown-like string.
-        // Steps are separated by "### Step <number>".
-        const normalizedText = intermediateText.replace(/\\n/g, '\n').trim();
-        if (normalizedText) {
-            const stepRegex = /### Step \d+[\s\S]*?(?=(?:### Step \d+|$))/g;
-            const matches = normalizedText.match(stepRegex);
-            if (matches && matches.length > 0) {
-                intermediateSteps = matches.map(step => step.trim());
-            } else {
-                // If no steps are found but text exists, show it as a single block.
-                // This could happen if the intermediate text is just one chunk without the '### Step' header.
-                intermediateSteps = [normalizedText];
-            }
-        }
-    }
     console.log('intermediateSteps:', intermediateSteps);
 
     const getIntermediatePreview = () => {
@@ -58,13 +34,7 @@ export const IntermediateDisplay = ({ intermediateText, agentId, isIntermediate 
         }
 
         const lastThreeSteps = intermediateSteps.slice(-3);
-        const previewText = lastThreeSteps.map(step => {
-            if (agentUuid !== "888e417d-0993-4101-a9e6-a49b308e2ccc" && agentUuid !== "56098a16-58d3-46e1-91ed-15e7feefc98d") {
-                return step.replace(/### Step \d+[:\s]*/, '').trim();
-            }
-            return step;
-        }).join('\n');
-        
+        const previewText = lastThreeSteps.map(step => step.trim()).join('\n');
         return previewText.length > 200 ? `...${previewText.slice(-200)}` : previewText;
     }
 

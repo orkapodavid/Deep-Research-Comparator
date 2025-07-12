@@ -134,14 +134,14 @@ class LLMAgent:
 1. {content}'''
                 
                 # Accumulate the formatted reasoning
-                self.current_think_content += step_reasoning
+                self.current_think_content += step_reasoning + "|||---|||"
                 
                 # Yield normalized format
                 yield {
-                    "think": self.current_think_content, 
-                    "final": None,
-                    "is_reasoning": True, 
-                    "complete": False
+                    "intermediate_steps": self.current_think_content, 
+                    "final_report": None,
+                    "is_intermediate": True, 
+                    "is_complete": False
                 }
                 #print(f"Time taken for step {self.num_env_steps} is {end-start}")
                 if done:
@@ -158,10 +158,10 @@ class LLMAgent:
 
         answer = self._compose_final_output(action)
         yield {
-            "think": None, 
-            "final": answer,
-            "is_reasoning": False, 
-            "complete": True
+            "intermediate_steps": None, 
+            "final_report": answer,
+            "is_intermediate": False, 
+            "is_complete": True
         }
 
     def query_gemini(self, prompt):

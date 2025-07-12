@@ -208,16 +208,16 @@ async def agent_task_worker(
         async for data in producer:
             payload = {}
             if "error" in data:
-                payload[f"{agent_id_str}_final"] = data["error"]
+                payload[f"{agent_id_str}_final_report"] = data["error"]
                 await q.put((agent_id_str, payload))
                 break
 
-            if data.get("think") is not None:
-                payload[f"{agent_id_str}_think"] = data["think"]
-            if data.get("final") is not None:
-                payload[f"{agent_id_str}_final"] = data["final"]
-            if data.get("is_reasoning") is not None:
-                payload[f"{agent_id_str}_isReasoning"] = data["is_reasoning"]
+            if data.get("intermediate_steps") is not None:
+                payload[f"{agent_id_str}_intermediate_steps"] = data["intermediate_steps"]
+            if data.get("final_report") is not None:
+                payload[f"{agent_id_str}_final_report"] = data["final_report"]
+            if data.get("is_intermediate") is not None:
+                payload[f"{agent_id_str}_is_intermediate"] = data["is_intermediate"]
             if data.get("citations") is not None:
                 payload[f"{agent_id_str}_citations"] = data["citations"]
             
@@ -268,9 +268,10 @@ async def deep_research_question(request: Request):
 
         initial_metadata = {
             "metadata": {"selected_agents": selected_agents, "agentA_id": agent_a_uuid, "agentB_id": agent_b_uuid},
-            "agentA_think": None, "agentB_think": None, "agentA_final": None, "agentB_final": None,
-            "agentA_isReasoning": False, "agentB_isReasoning": False,
-            "agentA_complete": False, "agentB_complete": False,
+            "agentA_intermediate_steps": None, "agentB_intermediate_steps": None,
+            "agentA_final_report": None, "agentB_final_report": None,
+            "agentA_is_intermediate": False, "agentB_is_intermediate": False,
+            "agentA_is_complete": False, "agentB_is_complete": False,
             "agentA_citations": [], "agentB_citations": [],
             "agentA_updated": False, "agentB_updated": False, "final": False
         }
@@ -283,10 +284,10 @@ async def deep_research_question(request: Request):
         active_producers = len(tasks)
 
         combined_state = {
-            "agentA_think": None, "agentB_think": None,
-            "agentA_final": None, "agentB_final": None,
-            "agentA_isReasoning": False, "agentB_isReasoning": False,
-            "agentA_complete": False, "agentB_complete": False,
+            "agentA_intermediate_steps": None, "agentB_intermediate_steps": None,
+            "agentA_final_report": None, "agentB_final_report": None,
+            "agentA_is_intermediate": False, "agentB_is_intermediate": False,
+            "agentA_is_complete": False, "agentB_is_complete": False,
             "agentA_citations": [], "agentB_citations": [],
         }
 
@@ -306,9 +307,9 @@ async def deep_research_question(request: Request):
                 if chunk_data is None:
                     active_producers -= 1
                     if source_agent_id == "agentA":
-                        combined_state["agentA_complete"] = True
+                        combined_state["agentA_is_complete"] = True
                     else:
-                        combined_state["agentB_complete"] = True
+                        combined_state["agentB_is_complete"] = True
                     
                     payload = combined_state.copy()
                     payload["agentA_updated"] = (source_agent_id == "agentA")
@@ -319,24 +320,23 @@ async def deep_research_question(request: Request):
                     continue
 
                 # Update combined state from the formatted chunk_data
-                if "agentA_think" in chunk_data:
-                    combined_state["agentA_think"] = chunk_data["agentA_think"]
-                if "agentB_think" in chunk_data:
-                    combined_state["agentB_think"] = chunk_data["agentB_think"]
+                if "agentA_intermediate_steps" in chunk_data:
+                    combined_state["agentA_intermediate_steps"] = chunk_data["agentA_intermediate_steps"]
+                if "agentB_intermediate_steps" in chunk_data:
+                    combined_state["agentB_intermediate_steps"] = chunk_data["agentB_intermediate_steps"]
 
+                # If a final answer arrives, reasoning is over.
+                if "agentA_final_report" in chunk_data:
+                    combined_state["agentA_final_report"] = chunk_data["agentA_final_report"] 
+                    combined_state["agentA_is_intermediate"] = False
+                if "agentB_final_report" in chunk_data:
+                    combined_state["agentB_final_report"] = chunk_data["agentB_final_report"]
+                    combined_state["agentB_is_intermediate"] = False
                 
-                if "agentA_final" in chunk_data:
-                    combined_state["agentA_final"] = chunk_data["agentA_final"]
-                    # If a final answer arrives, reasoning is over.
-                    combined_state["agentA_isReasoning"] = False
-                if "agentB_final" in chunk_data:
-                    combined_state["agentB_final"] = chunk_data["agentB_final"]
-                    combined_state["agentB_isReasoning"] = False
-                
-                if "agentA_isReasoning" in chunk_data:
-                    combined_state["agentA_isReasoning"] = chunk_data["agentA_isReasoning"]
-                if "agentB_isReasoning" in chunk_data:
-                    combined_state["agentB_isReasoning"] = chunk_data["agentB_isReasoning"]
+                if "agentA_is_intermediate" in chunk_data:
+                    combined_state["agentA_is_intermediate"] = chunk_data["agentA_is_intermediate"]
+                if "agentB_is_intermediate" in chunk_data:
+                    combined_state["agentB_is_intermediate"] = chunk_data["agentB_is_intermediate"]
 
                 if "agentA_citations" in chunk_data:
                     combined_state["agentA_citations"] = chunk_data["agentA_citations"]
@@ -350,15 +350,15 @@ async def deep_research_question(request: Request):
                 payload = combined_state.copy()
                 payload["agentA_updated"] = (source_agent_id == "agentA")
                 payload["agentB_updated"] = (source_agent_id == "agentB")
-                payload["final"] = False
+                payload["is_final"] = False
                 
                 yield json.dumps(payload) + "\n"
 
             # Final yield to ensure frontend knows both are complete.
             final_state = combined_state.copy()
-            final_state["final"] = True
-            final_state["agentA_complete"] = True
-            final_state["agentB_complete"] = True
+            final_state["is_final"] = True
+            final_state["agentA_is_complete"] = True
+            final_state["agentA_is_complete"] = True
             final_state["agentA_updated"] = False
             final_state["agentB_updated"] = False
             yield json.dumps(final_state) + "\n"
