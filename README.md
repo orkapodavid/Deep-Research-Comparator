@@ -1,6 +1,7 @@
 # Deep-Research-Comparator
 
 Official repository for Deep Research Comparator: A Platform For Fine-grained Human Annotations of Deep Research Agents [Submitted to : EMNLP System Demo 2025]
+
 Preprint Link : https://arxiv.org/abs/2507.05495
 
 
@@ -46,13 +47,13 @@ npm install
 ### 1. Environment Setup 
 
 #### Main Backend 
-The main backend present in `/app` directory expects the PostgresSQL Database connection parameters and the HTTP API endpoints of the participating agents through the file `keys.env` whose structure is presented below	
+The main backend present in `backend/app` directory expects the PostgresSQL Database connection parameters and the HTTP API endpoints of the participating agents through the file `keys.env` whose structure is presented below	
 
 ```bash
-AWS_ENDPOINT = "YOUR DATABASE URL"
-DB_NAME = "YOUR DATABASE NAME"
-DB_USERNAME = "YOUR DATABASE USERNAME"
-DB_PASSWORD = "YOUR DATABASE PASSWORD"
+AWS_ENDPOINT = "YOUR_DATABASE_URL"
+DB_NAME = "YOUR_DATABASE_NAME"
+DB_USERNAME = "YOUR_DATABASE_USERNAME"
+DB_PASSWORD = "YOUR_DATABASE_PASSWORD"
 GPT_RESEARCHER_URL = http://localhost:5004/run
 PERPLEXITY_URL = http://localhost:5005/run
 BASELINE_URL = http://localhost:5003/run
@@ -97,7 +98,7 @@ python main.py
 cd backend/Simple_DeepResearch_server
 python main.py
 ```
-If all the default settings the followed the platform should be available in : http://localhost:5173/
+If all the default settings are followed then the platform should be available in : http://localhost:5173/
 
 ## 📝 Citation
 
