@@ -65,7 +65,7 @@ class LLMAgent:
         self.summary_history = ''
         self.config = config
         self.context_cnt = []
-        self.current_think_content = ""  # Accumulator for reasoning steps
+        self.current_think_content = ""  
 
     def run_llm_loop(self, prompt):
         done = False
@@ -95,46 +95,44 @@ class LLMAgent:
                 )
                 #end = time.time()
                 
-                # Format step reasoning the same way as the original baseline_producer_gen
-                step_reasoning = f"### Step {self.num_env_steps}\n"
+                step_intermediate = f"### Step {self.num_env_steps}\n"
                 
                 if thought and thought != "None":
-                    step_reasoning += f'''**Thought**
+                    step_intermediate += f'''**Thought**
 
 1. {thought}
 
 '''
                 
                 if actioname == "plan" and content != "None":
-                    step_reasoning += f'''
+                    step_intermediate += f'''
 
 **ACTION: Plan**
 
 1. {content}'''
                 
                 if actioname == "search" and next_obs != "None":
-                    step_reasoning += f'''
+                    step_intermediate += f'''
 
 **ACTION: Search**
 
 1. {next_obs}'''
                 
                 if actioname == "scripts" and content != "None":
-                    step_reasoning += f'''
+                    step_intermediate += f'''
 
 **ACTION: Scripts**
 
 1. {content}'''
                 
                 if actioname == "summary" and content != "None":
-                    step_reasoning += f'''
+                    step_intermediate += f'''
 
 **ACTION: Summary**
 
 1. {content}'''
                 
-                # Accumulate the formatted reasoning
-                self.current_think_content += step_reasoning + "|||---|||"
+                self.current_think_content += step_intermediate + "|||---|||"
                 
                 # Yield normalized format
                 yield {

@@ -325,7 +325,7 @@ async def deep_research_question(request: Request):
                 if "agentB_intermediate_steps" in chunk_data:
                     combined_state["agentB_intermediate_steps"] = chunk_data["agentB_intermediate_steps"]
 
-                # If a final answer arrives, reasoning is over.
+                # If a final answer arrives, intermediate steps are over.
                 if "agentA_final_report" in chunk_data:
                     combined_state["agentA_final_report"] = chunk_data["agentA_final_report"] 
                     combined_state["agentA_is_intermediate"] = False
@@ -482,8 +482,8 @@ async def answer_span_vote(request: Request):
 
 
 @app.post('/api/intermediate-step-vote')
-async def reasoning_step_vote(request: Request):
-    """Logs a user's vote on a specific reasoning step."""
+async def intermediate_step_vote(request: Request):
+    """Logs a user's vote on a specific intermediate step."""
     data = await request.json()
     
     # Extract data from the request
@@ -505,15 +505,15 @@ async def reasoning_step_vote(request: Request):
                 session_id=session_id,
                 agent_id=agent_id,
                 vote=vote,
-                reasoning_content=step_text,
+                intermediate_step=step_text,
             )
             db_session.add(new_vote)
         
-        logger.info(f"Stored reasoning step vote for agent_id: {agent_id}, vote: {vote}.")
+        logger.info(f"Stored intermediate step vote for agent_id: {agent_id}, vote: {vote}.")
 
     except Exception as e:
-        logger.error(f"Failed to write reasoning step vote to database: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to record reasoning step vote.")
+        logger.error(f"Failed to write intermediate step vote to database: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to record intermediate step vote.")
 
     return JSONResponse(content={"status": "success", "message": "Vote recorded"}, status_code=200)
 

@@ -25,7 +25,7 @@ engine = create_engine(DB_URI, echo = False)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# We use the field agent_id to identify all the models
+# We use the field agent_id to identify all the agents
 
 class rankings:
      def __init__(self, agent_id, rating = 0):
@@ -51,20 +51,20 @@ def return_bt_dataframe():
     df = pd.DataFrame(updated_rows, columns=['agent_a', 'agent_b', 'winner'])
     return df
 
-def get_matchups_models(df):
+def get_matchups_agents(df):
     n_rows = len(df)
-    model_indices, models = pd.factorize(pd.concat([df["agent_a"], df["agent_b"]]))
-    matchups = np.column_stack([model_indices[:n_rows], model_indices[n_rows:]])
-    return matchups, models.to_list()
+    agent_indices, agents = pd.factorize(pd.concat([df["agent_a"], df["agent_b"]]))
+    matchups = np.column_stack([agent_indices[:n_rows], agent_indices[n_rows:]])
+    return matchups, agents.to_list()
 
 def preprocess_for_bt(df):
     """in BT we only need the unique (matchup,outcome) sets along with the weights of how often they occur"""
     n_rows = len(df)
     # the 3 columns of schedule represent: agent_a id, agent_b id, outcome_id
     schedule = np.full((n_rows, 3), fill_value=1, dtype=np.int32)
-    # set the two model cols by mapping the model names to their int ids
-    schedule[:, [0, 1]], models = get_matchups_models(df)
-    # map outcomes to integers (must be same dtype as model ids so it can be in the same array)
+    # set the two agent cols by mapping the agent names to their int ids
+    schedule[:, [0, 1]], agents = get_matchups_agents(df)
+    # map outcomes to integers (must be same dtype as agent ids so it can be in the same array)
     # agent_a win -> 2, tie -> 1 (prefilled by default), agent_b win -> 0
     schedule[df["winner"] == "agent_a", 2] = 2
     schedule[df["winner"] == "agent_b", 2] = 0
@@ -75,7 +75,7 @@ def preprocess_for_bt(df):
     outcomes = matchups_outcomes[:, 2].astype(np.float64) / 2.0
     weights = weights.astype(np.float64)
     # each possible result is weighted according to number of times it occured in the dataset
-    return matchups, outcomes, models, weights
+    return matchups, outcomes, agents, weights
 
 def bt_loss_and_grad(ratings, matchups, outcomes, weights, alpha=1.0):
     matchup_ratings = ratings[matchups]
@@ -86,17 +86,17 @@ def bt_loss_and_grad(ratings, matchups, outcomes, weights, alpha=1.0):
         (np.log(probs) * outcomes + np.log(1.0 - probs) * (1.0 - outcomes)) * weights
     ).sum()
     matchups_grads = -alpha * (outcomes - probs) * weights
-    model_grad = np.zeros_like(ratings)
-    # aggregate gradients at the model level using the indices in matchups
+    agent_grad = np.zeros_like(ratings)
+    # aggregate gradients at the agent level using the indices in matchups
     np.add.at(
-        model_grad,
+        agent_grad,
         matchups[:, [0, 1]],
         matchups_grads[:, None] * np.array([1.0, -1.0], dtype=np.float64),
     )
-    return loss, model_grad
+    return loss, agent_grad
             
-def fit_bt(matchups, outcomes, weights, n_models, alpha, tol=1e-6):
-    initial_ratings = np.zeros(n_models, dtype=np.float64)
+def fit_bt(matchups, outcomes, weights, n_agents, alpha, tol=1e-6):
+    initial_ratings = np.zeros(n_agents, dtype=np.float64)
     result = minimize(
         fun=bt_loss_and_grad,
         x0=initial_ratings,
@@ -109,24 +109,24 @@ def fit_bt(matchups, outcomes, weights, n_models, alpha, tol=1e-6):
 
 def scale_and_offset(
     ratings,
-    models,
+    agents,
     scale=400,
     init_rating=1000,
-    baseline_model="baseline",
-    baseline_rating=1000,
+    baseline_agent="baseline",
+    baseline_rating=1114,
 ):
     """convert ratings from the natural scale to the Elo rating scale with an anchored baseline"""
     scaled_ratings = (ratings * scale) + init_rating
-    if baseline_model in models:
-        baseline_idx = models.index(baseline_model)
+    if baseline_agent in agents:
+        baseline_idx = agents.index(baseline_agent)
         scaled_ratings += baseline_rating - scaled_ratings[..., [baseline_idx]]
     return scaled_ratings
 
 def compute_bt(df, base=10.0, scale=400.0, init_rating=1000, tol=1e-6):
-    matchups, outcomes, models, weights = preprocess_for_bt(df)  
-    ratings = fit_bt(matchups, outcomes, weights, len(models), math.log(base), tol)
-    scaled_ratings = scale_and_offset(ratings, models, scale, init_rating=init_rating)
-    return pd.Series(scaled_ratings, index=models).sort_values(ascending=False)
+    matchups, outcomes, agents, weights = preprocess_for_bt(df)  
+    ratings = fit_bt(matchups, outcomes, weights, len(agents), math.log(base), tol)
+    scaled_ratings = scale_and_offset(ratings, agents, scale, init_rating=init_rating)
+    return pd.Series(scaled_ratings, index=agents).sort_values(ascending=False)
 
 
 def compute_Answering_Span_Upvote_rate(agent_id):
@@ -242,8 +242,8 @@ def main():
 
     df = return_bt_dataframe()
     bt_scores = compute_bt(df)
-    for model, rating in bt_scores.items():
-        rating_array.append(rankings(model,round(rating,0)))
+    for agent, rating in bt_scores.items():
+        rating_array.append(rankings(agent,round(rating,0)))
     
     for rating in rating_array:
         rating.SYSTEMNAME = return_system_name(rating.SYSTEMID)
@@ -254,13 +254,13 @@ def main():
     for i in range(len(sorted_rankings)):
         sorted_rankings[i].RANK = i+1
     insert_into_rankings(sorted_rankings)
-    for model in rating_array:
-        print(model.SYSTEMNAME)
-        print(model.VOTES)
-        print(model.RANK)
-        print(model.ARENASCORE)
-        print(model.STEPUPVOTE_RATE)
-        print(model.TEXTUPVOTE_RATE)
+    for agent in rating_array:
+        print(agent.SYSTEMNAME)
+        print(agent.VOTES)
+        print(agent.RANK)
+        print(agent.ARENASCORE)
+        print(agent.STEPUPVOTE_RATE)
+        print(agent.TEXTUPVOTE_RATE)
         print("------------------")
 
 if  __name__ == "__main__":
