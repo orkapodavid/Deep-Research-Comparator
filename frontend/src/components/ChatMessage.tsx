@@ -191,12 +191,12 @@ export const DeepResearchChatMessage = ({ message, agentId, agentUuid, sessionId
                 }}
             >
                 {/* Display intermediate steps if available and not user message */}
-                {!isUser && message.intermediate && agentId && (
+                {!isUser && message.intermediate_steps && agentId && (
                     <IntermediateDisplay 
-                        intermediateText={message.intermediate} 
+                        intermediateText={message.intermediate_steps} 
                         agentId={agentId} 
                         agentUuid={agentUuid}
-                        isIntermediate={message.isIntermediate}
+                        isIntermediate={message.is_intermediate}
                         sessionId={sessionId}
                     />
                 )}
@@ -224,7 +224,7 @@ export const DeepResearchChatMessage = ({ message, agentId, agentUuid, sessionId
                             {markdownText}
                         </ReactMarkdown>
                     </div>
-                    {!isUser && uniqueCitations.length > 0 && message.isComplete && (
+                    {!isUser && uniqueCitations.length > 0 && message.is_complete && (
                         <Citations citations={uniqueCitations} />
                     )}
                 </div>
@@ -280,7 +280,7 @@ export const DeepResearchChatMessage = ({ message, agentId, agentUuid, sessionId
                     </>
                 )}
 
-                {!isUser && displayText === '' && !message.intermediate && (
+                {!isUser && displayText === '' && !message.intermediate_steps && (
                     <div className="flex space-x-2 mt-2">
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>

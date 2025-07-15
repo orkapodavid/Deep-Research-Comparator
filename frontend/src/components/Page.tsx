@@ -85,14 +85,14 @@ export const DeepResearchPage = () => {
                 const agentAMessage: ChatMessage = {
                     role: 'assistant',
                     content: [{ text: '' }],
-                    intermediate: '',
-                    isIntermediate: true
+                    intermediate_steps: '',
+                    is_intermediate: true
                 };
                 const agentBMessage: ChatMessage = {
                     role: 'assistant',
                     content: [{ text: '' }],
-                    intermediate: '',
-                    isIntermediate: true
+                    intermediate_steps: '',
+                    is_intermediate: true
                 };
 
                 const newState = {
@@ -137,20 +137,20 @@ export const DeepResearchPage = () => {
                             if (assistantMsgIndex >= 0) {
                                 const assistantMsg = { ...agentAMessages[assistantMsgIndex] };
                                 
-                                // The backend now sends agentA.content (final) and agentA.intermediate (think) separately
+                                // The backend sends agentA_final_report (final) and agentA_intermediate_steps (think) separately
                                 // The agentA_isIntermediate flag indicates which phase the agent is in.
                                 assistantMsg.content = [{ text: chunk.agentA.content || '' }];
                                 // Only update intermediate if new intermediate content is provided, preserve existing intermediate otherwise
                                 if (chunk.agentA.intermediate) {
-                                    assistantMsg.intermediate = chunk.agentA.intermediate;
-                                } else if (assistantMsg.intermediate === undefined) {
-                                    assistantMsg.intermediate = '';
+                                    assistantMsg.intermediate_steps = chunk.agentA.intermediate;
+                                } else if (assistantMsg.intermediate_steps === undefined) {
+                                    assistantMsg.intermediate_steps = '';
                                 }
                                 if (chunk.agentA.citations) {
                                     assistantMsg.citations = chunk.agentA.citations;
                                 }
-                                assistantMsg.isIntermediate = chunk.agentA_isIntermediate;
-                                assistantMsg.isComplete = chunk.agentA_complete;
+                                assistantMsg.is_intermediate = chunk.agentA_is_intermediate;
+                                assistantMsg.is_complete = chunk.agentA_is_complete;
 
                                 agentAMessages[assistantMsgIndex] = assistantMsg;
                             }
@@ -166,20 +166,20 @@ export const DeepResearchPage = () => {
                             if (assistantMsgIndex >= 0) {
                                 const assistantMsg = { ...agentBMessages[assistantMsgIndex] };
 
-                                // The backend now sends agentB.content (final) and agentB.intermediate (think) separately
+                                // The backend sends agentB_final_report (final) and agentB_intermediate_steps (think) separately
                                 // The agentB_isIntermediate flag indicates which phase the agent is in.
                                 assistantMsg.content = [{ text: chunk.agentB.content || '' }];
                                 // Only update intermediate if new intermediate content is provided, preserve existing intermediate otherwise
                                 if (chunk.agentB.intermediate) {
-                                    assistantMsg.intermediate = chunk.agentB.intermediate;
-                                } else if (assistantMsg.intermediate === undefined) {
-                                    assistantMsg.intermediate = '';
+                                    assistantMsg.intermediate_steps = chunk.agentB.intermediate;
+                                } else if (assistantMsg.intermediate_steps === undefined) {
+                                    assistantMsg.intermediate_steps = '';
                                 }
                                 if (chunk.agentB.citations) {
                                     assistantMsg.citations = chunk.agentB.citations;
                                 }
-                                assistantMsg.isIntermediate = chunk.agentB_isIntermediate;
-                                assistantMsg.isComplete = chunk.agentB_complete;
+                                assistantMsg.is_intermediate = chunk.agentB_is_intermediate;
+                                assistantMsg.is_complete = chunk.agentB_is_complete;
                                 
                                 agentBMessages[assistantMsgIndex] = assistantMsg;
                             }
@@ -188,7 +188,7 @@ export const DeepResearchPage = () => {
                     }
                     
                     // If this is the final chunk, enable the choice buttons
-                    if (chunk.final) {
+                    if (chunk.is_final) {
                         setIsChoiceDisabled(false);
                         setHasAnswered(false);
                     }

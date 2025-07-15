@@ -48,10 +48,10 @@ async def perplexity_producer_gen(question: str) -> AsyncGenerator[Dict[str, Any
     """
     Streams from Perplexity API and yields standardized updates.
     """
-    current_think_content = ""
+    current_intermediate_content = ""
     current_final_content = ""
     all_citations = [] # Master list of all citations found so far
-    in_think_block = False
+    in_intermediate_block = False
     is_complete = False
     try:
         async for chunk_data in stream_perplexity_api(user_message=question):
@@ -64,38 +64,42 @@ async def perplexity_producer_gen(question: str) -> AsyncGenerator[Dict[str, Any
             content_chunk = chunk_data.get('content', '')
 
             # Process content based on whether we are inside a <think> block
-            if in_think_block:
+            if in_intermediate_block:
                 if "</think>" in content_chunk:
                     # End of think block found
-                    think_part, final_part = content_chunk.split("</think>", 1)
-                    current_think_content += think_part
+                    intermediate_part, final_part = content_chunk.split("</think>", 1)
+                    current_intermediate_content += intermediate_part 
                     current_final_content += final_part
-                    in_think_block = False
+                    in_intermediate_block = False
                 else:
                     # Still in think block
-                    current_think_content += content_chunk
+                    current_intermediate_content += content_chunk
             elif "<think>" in content_chunk:
                 # Start of think block found
-                final_part, think_part = content_chunk.split("<think>", 1)
+                final_part, intermediate_part = content_chunk.split("<think>", 1)
                 current_final_content += final_part
-                in_think_block = True
+                in_intermediate_block = True
                 
                 # Check if the think block also ends in this same chunk
-                if "</think>" in think_part:
-                    think_part_actual, final_part_after = think_part.split("</think>", 1)
-                    current_think_content += think_part_actual
+                if "</think>" in intermediate_part:
+                    intermediate_part_actual, final_part_after = intermediate_part.split("</think>", 1)
+                    current_intermediate_content += intermediate_part_actual
                     current_final_content += final_part_after
-                    in_think_block = False
+                    in_intermediate_block = False
                 else:
-                    current_think_content += think_part
+                    current_intermediate_content += intermediate_part
             else:
                 # Not in a think block, and no think block starts
                 current_final_content += content_chunk
 
+
+            current_intermediate_content = current_intermediate_content.replace('\n\n', '|||---|||').strip()
             # This is the base payload for this chunk
             payload = {
-                "think": current_think_content, "final": fix_markdown(current_final_content),
-                "is_reasoning": in_think_block, "complete": False
+                "intermediate_steps": current_intermediate_content , 
+                "final_report": fix_markdown(current_final_content),
+                "is_intermediate": in_intermediate_block,
+                "complete": False
             }
             
             # Only add citations to the payload if the list has changed
@@ -115,9 +119,11 @@ async def perplexity_producer_gen(question: str) -> AsyncGenerator[Dict[str, Any
     finally:
         # Send a final completion message with all data to ensure consistency
         yield {
-            "think": current_think_content, "final": fix_markdown(current_final_content),
+            "intermediate_steps": current_intermediate_content, 
+            "final_report": fix_markdown(current_final_content),
+            "is_intermediate": False, 
+            "is_complete": True,
             "citations": all_citations,
-            "is_reasoning": False, "complete": True
         }
 
 

@@ -20,19 +20,19 @@ export interface StreamingResponse {
         agentA_type?: string;
         agentB_type?: string;
     };
-    final?: boolean;
-    agentA_think?: string;
-    agentA_final?: string;
-    agentA_complete?: boolean;
+    is_final?: boolean;
+    agentA_intermediate_steps?: string;
+    agentA_final_report?: string;
+    agentA_is_complete?: boolean;
     agentA_citations?: Citation[];
-    agentB_think?: string;
-    agentB_final?: string;
-    agentB_complete?: boolean;
+    agentB_intermediate_steps?: string;
+    agentB_final_report?: string;
+    agentB_is_complete?: boolean;
     agentB_citations?: Citation[];
     agentA_updated?: boolean;
     agentB_updated?: boolean;
-    agentA_isIntermediate?: boolean;
-    agentB_isIntermediate?: boolean;
+    agentA_is_intermediate?: boolean;
+    agentB_is_intermediate?: boolean;
     heartbeat?: boolean;
     message?: string;
     test_message?: string;
@@ -53,6 +53,13 @@ export const streamResponse = async (
     });
 
     if (!response.ok) {
+        // Emit a special error chunk to the UI
+        onChunk({
+            agentA: { content: '', passages: [], intermediate: '', citations: [] },
+            agentB: { content: '', passages: [], intermediate: '', citations: [] },
+            message: `Error: Unable to connect to backend (status: ${response.status})`,
+            is_final: true
+        });
         throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -101,6 +108,17 @@ export const streamResponse = async (
             try {
                 const update = JSON.parse(line);
 
+                if (update.error) {
+                    // Emit error message to the UI
+                    onChunk({
+                        agentA: { content: '', passages: [], intermediate: '', citations: [] },
+                        agentB: { content: '', passages: [], intermediate: '', citations: [] },
+                        message: `Error: ${update.error}`,
+                        is_final: true
+                    });
+                    continue;
+                }
+                
                 if (update.heartbeat) {
                     console.log('Received heartbeat at:', update.timestamp);
                     continue; // Skip processing as a data chunk, just keep connection alive
@@ -116,22 +134,22 @@ export const streamResponse = async (
                     agentB_type = update.metadata.agentB_type ?? agentB_type;
                 }
 
-                // Handle Agent A thinking updates by replacing the content
-                if (update.agentA_think != null) {
-                    agentAIntermediate = update.agentA_think;
+                // Handle Agent A intermediate steps updates
+                if (update.agentA_intermediate_steps != null) {
+                    agentAIntermediate = update.agentA_intermediate_steps;
                 }
 
-                // Handle Agent B thinking updates by replacing the content
-                if (update.agentB_think != null) {
-                    agentBIntermediate = update.agentB_think;
+                // Handle Agent B intermediate steps updates
+                if (update.agentB_intermediate_steps != null) {
+                    agentBIntermediate = update.agentB_intermediate_steps;
                 }
 
                 // Update final content if provided
-                if (update.agentA_final != null) {
-                    agentAContent = update.agentA_final.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+                if (update.agentA_final_report != null) {
+                    agentAContent = update.agentA_final_report.replace(/^```markdown\n/, '').replace(/\n```$/, '');
                 }
-                if (update.agentB_final != null) {
-                    agentBContent = update.agentB_final.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+                if (update.agentB_final_report != null) {
+                    agentBContent = update.agentB_final_report.replace(/^```markdown\n/, '').replace(/\n```$/, '');
                 }
 
                 if (update.agentA_citations && Array.isArray(update.agentA_citations)) {
@@ -166,19 +184,19 @@ export const streamResponse = async (
                         agentA_type,
                         agentB_type,
                     },
-                    final: !!update.final,
-                    agentA_think: update.agentA_think,
-                    agentA_final: update.agentA_final,
-                    agentA_complete: !!update.agentA_complete,
+                    is_final: !!update.final,
+                    agentA_intermediate_steps: update.agentA_intermediate_steps,
+                    agentA_final_report: update.agentA_final_report,
+                    agentA_is_complete: !!update.agentA_is_complete,
                     agentA_citations: agentACitations,
-                    agentB_think: update.agentB_think,
-                    agentB_final: update.agentB_final,
-                    agentB_complete: !!update.agentB_complete,
+                    agentB_intermediate_steps: update.agentB_intermediate_steps,
+                    agentB_final_report: update.agentB_final_report,
+                    agentB_is_complete: !!update.agentB_is_complete,
                     agentB_citations: agentBCitations,
                     agentA_updated: !!update.agentA_updated,
                     agentB_updated: !!update.agentB_updated,
-                    agentA_isIntermediate: !!update.agentA_isIntermediate,
-                    agentB_isIntermediate: !!update.agentB_isIntermediate
+                    agentA_is_intermediate: !!update.agentA_is_intermediate,
+                    agentB_is_intermediate: !!update.agentB_is_intermediate
                 };
 
                 onChunk(chunkToEmit);

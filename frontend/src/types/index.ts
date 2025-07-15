@@ -10,19 +10,23 @@ export interface StreamingResponse {
     metadata?: {
         passages_a: any[];
         passages_b: any[];
-        selected_agents?: any[];
-        agent1_type?: 'baseline' | 'perplexity';
-        agent2_type?: 'baseline' | 'perplexity';
+        selected_agents?: any;
+        agentA_type?: string;
+        agentB_type?: string;
     };
-    final?: boolean;
-    agent1?: string;
-    agent2?: string;
-    agent1_complete?: boolean;
-    agent2_complete?: boolean;
+    is_final?: boolean;
+    agentA_intermediate_steps?: string;
+    agentA_final_report?: string;
+    agentA_is_complete?: boolean;
+    agentA_citations?: Citation[];
+    agentB_intermediate_steps?: string;
+    agentB_final_report?: string;
+    agentB_is_complete?: boolean;
+    agentB_citations?: Citation[];
     agentA_updated?: boolean;
     agentB_updated?: boolean;
-    agentA_isIntermediate?: boolean;
-    agentB_isIntermediate?: boolean;
+    agentA_is_intermediate?: boolean;
+    agentB_is_intermediate?: boolean;
     heartbeat?: boolean;
     message?: string;
     test_message?: string;
@@ -80,10 +84,10 @@ export interface Citation {
 export interface ChatMessage {
     role: 'user' | 'assistant';
     content: MessageContent[];
-    intermediate?: string;
+    intermediate_steps?: string;
     citations?: Citation[];
-    isIntermediate?: boolean;
-    isComplete?: boolean;
+    is_intermediate?: boolean;
+    is_complete?: boolean;
 }
 
 export interface ChatHistory {

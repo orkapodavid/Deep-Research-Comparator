@@ -24,9 +24,9 @@ async def gpt_researcher_producer_gen(question: str) -> AsyncGenerator[Dict[str,
     """
     Runs gpt-researcher and yields standardized updates.
     """
-    thinking_log = ""
+    intermediate_steps = ""
     final_report_content = ""
-    is_reasoning = False
+    is_intermediate = False
 
     try:
         # 1. Define a custom handler to capture structured messages from gpt-researcher
@@ -69,12 +69,12 @@ async def gpt_researcher_producer_gen(question: str) -> AsyncGenerator[Dict[str,
             msg_output = msg_output_raw.strip()
 
             if msg_type == "logs":
-                is_reasoning = True
+                is_intermediate = True
                 if msg_output:
-                    thinking_log += f"{msg_output}\n\n"
+                    intermediate_steps += f"{msg_output}|||---|||"
                     logger.info(f"Added to thinking log: {msg_output[:100]}...")
             elif msg_type == "report":
-                is_reasoning = False
+                is_intermediate = False
                 final_report_content += msg_output_raw
                 logger.info(f"Added to final report: {msg_output_raw[:100]}...")
             elif msg_type == "error":
@@ -83,20 +83,20 @@ async def gpt_researcher_producer_gen(question: str) -> AsyncGenerator[Dict[str,
                 break
 
             yield {
-                "think": thinking_log,
-                "final": final_report_content,
-                "is_reasoning": is_reasoning,
-                "complete": False
+                "intermediate_steps": intermediate_steps,
+                "final_report": final_report_content,
+                "is_intermediate": is_intermediate,
+                "is_complete": False   #citations are not present for GPT researcher
             }
 
         await research_task
         logger.info("Research task completed, sending final state")
         # Signal completion with final state
         yield {
-            "think": thinking_log,
-            "final": final_report_content,
-            "is_reasoning": False,
-            "complete": True
+            "intermediate_steps": intermediate_steps,
+            "final_report": final_report_content,
+            "is_intermediate": False,
+            "is_complete": True
         }
 
     except Exception as e:

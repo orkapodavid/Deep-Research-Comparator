@@ -55,4 +55,4 @@ class IntermediateStepVote(Base):
     timestamp = Column(sqlalchemy.TIMESTAMP, server_default=func.now())
     agent_id = Column(String(128), nullable=False)
     vote = Column(String(10), nullable=False)
-    reasoning_content = Column(Text, nullable=False)
+    intermediate_step = Column(Text, nullable=False)
