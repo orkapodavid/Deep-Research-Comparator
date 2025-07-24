@@ -4,6 +4,8 @@ import json
 import aiohttp
 import asyncio
 
+CLUEWEB_API_KEY = "YOUR_API_KEY"
+
 def query_clueweb(query, num_docs=10, num_top_docs_to_read=1, num_outlinks_per_doc=None, with_id=False, with_url=False, num_tries = 3):
     """
     Args:
@@ -24,7 +26,7 @@ def query_clueweb(query, num_docs=10, num_top_docs_to_read=1, num_outlinks_per_d
         request_url = f"{URL}/search?query={query}&k={num_docs}"
 
     headers = {
-        "X-API-Key": "3OsDrO2xE5JXQYNKMCfwMCop6w4g96mvc3DvmhTM5yY"
+        "X-API-Key": CLUEWEB_API_KEY
     }
 
     try_count = 0

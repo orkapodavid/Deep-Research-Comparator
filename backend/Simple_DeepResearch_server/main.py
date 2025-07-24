@@ -423,7 +423,7 @@ def return_model_response():
 
         prompt = report_prompt.format(question=question)
 
-        config = {"max_turns": 25, # max number of turns
+        config = {"max_turns": 30, # max number of turns
                     "num_docs": 1, # number of documents to retrieve
                     "max_try_time": 5, # max number of tries to generate a response
                     "search_reminder_turn": 5, # number of turns to remind the agent to stop search and revise the report scripts or output the final report (only for long report)
