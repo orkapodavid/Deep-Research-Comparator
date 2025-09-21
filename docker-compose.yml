@@ -1,0 +1,129 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: deepresearch_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - deepresearch_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepresearch_user -d deepresearch_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Main Backend App
+  backend_app:
+    build:
+      context: ./backend/app
+      dockerfile: Dockerfile
+    container_name: deepresearch_backend
+    environment:
+      - DB_ENDPOINT=postgres
+      - DB_NAME: ${DB_NAME}
+      - DB_USERNAME: ${DB_USERNAME}
+      - DB_PASSWORD: ${DB_PASSWORD}
+      - GPT_RESEARCHER_URL=http://gpt_researcher:5004/run
+      - PERPLEXITY_URL=http://perplexity_server:5005/run
+      - BASELINE_URL=http://baseline_server:5003/run
+      # API keys passed from host environment (not stored in image)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SERPER_API_KEY=${SERPER_API_KEY}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+    ports:
+      - "5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - deepresearch_network
+    volumes:
+      - ./backend/app:/app
+    restart: unless-stopped
+
+  # GPT Researcher Server
+  gpt_researcher:
+    build:
+      context: ./backend/gpt_researcher_server
+      dockerfile: Dockerfile
+    container_name: deepresearch_gpt_researcher
+    environment:
+      # API keys passed from host environment (not stored in image)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SERPER_API_KEY=${SERPER_API_KEY}
+      - RETRIEVER=serper
+    ports:
+      - "5004:5004"
+    networks:
+      - deepresearch_network
+    volumes:
+      - ./backend/gpt_researcher_server:/app
+    restart: unless-stopped
+
+  # Perplexity Server
+  perplexity_server:
+    build:
+      context: ./backend/perplexity_server
+      dockerfile: Dockerfile
+    container_name: deepresearch_perplexity
+    environment:
+      # API key passed from host environment (not stored in image)
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+    ports:
+      - "5005:5005"
+    networks:
+      - deepresearch_network
+    volumes:
+      - ./backend/perplexity_server:/app
+    restart: unless-stopped
+
+  # Baseline Server (Simple DeepResearch)
+  baseline_server:
+    build:
+      context: ./backend/Simple_DeepResearch_server
+      dockerfile: Dockerfile
+    container_name: deepresearch_baseline
+    environment:
+      # API key passed from host environment (not stored in image)
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    ports:
+      - "5003:5003"
+    networks:
+      - deepresearch_network
+    volumes:
+      - ./backend/Simple_DeepResearch_server:/app
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: deepresearch_frontend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5001
+    ports:
+      - "5173:5173"
+    networks:
+      - deepresearch_network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - backend_app
+
+volumes:
+  postgres_data:
+
+networks:
+  deepresearch_network:
+    driver: bridge

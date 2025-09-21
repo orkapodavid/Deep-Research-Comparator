@@ -1,16 +1,17 @@
+from dotenv import load_dotenv
 import httpx
 import json
-import os
 import logging
-import asyncio
+import os
 
 logger = logging.getLogger(__name__)
-from dotenv import load_dotenv
-load_dotenv('keys.env')
+load_dotenv()  # Load from .env file and environment variables
+
 # It's recommended to set PERPLEXITY_API_KEY in your environment variables
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 # You can also add PPLX_MODEL_NAME to your environment variables, or default it here
 DEFAULT_PPLX_MODEL_NAME = os.getenv("PPLX_MODEL_NAME", "sonar-deep-research")
+
 
 async def stream_perplexity_api(model: str | None = None, user_message: str = "", system_message: str | None = None):
     """
@@ -69,10 +70,10 @@ async def stream_perplexity_api(model: str | None = None, user_message: str = ""
                                 chunk_data['citations'] = data['citations']
 
                             if chunk_data:
-                                yield chunk_data # Yield a dictionary of findings
+                                yield chunk_data  # Yield a dictionary of findings
                         except json.JSONDecodeError:
                             logger.warning(f"Failed to decode JSON from Perplexity stream: {event_data}")
-                            continue # Skip malformed lines
+                            continue  # Skip malformed lines
                         except Exception as e:
                             logger.error(f"Error processing chunk from Perplexity for model {actual_model}: {e}, data: {event_data}")
                             # Yield an error structure if a specific chunk fails mid-stream
@@ -88,4 +89,4 @@ async def stream_perplexity_api(model: str | None = None, user_message: str = ""
         yield json.dumps({"error": f"Network error connecting to Perplexity API: {str(e)}", "model_name": actual_model})
     except Exception as e:
         logger.exception(f"Unexpected error in stream_perplexity_api for model {actual_model}:") # Logs with stack trace
-        yield json.dumps({"error": f"Unexpected error streaming from Perplexity: {type(e).__name__} - {str(e)}", "model_name": actual_model}) 
+        yield json.dumps({"error": f"Unexpected error streaming from Perplexity: {type(e).__name__} - {str(e)}", "model_name": actual_model})
