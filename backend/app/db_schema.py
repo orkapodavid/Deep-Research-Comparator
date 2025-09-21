@@ -1,27 +1,12 @@
 import uuid
 
 import sqlalchemy
-from sqlalchemy import Boolean, Column, Float, Integer, String, Text
+from sqlalchemy import Column, String, Text
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
 Base = declarative_base()
-
-
-class DeepresearchRankings(Base):
-    __tablename__ = "deepresearch_rankings"
-
-    ID = Column(pgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    SYSTEMID = Column(String(65535))  # same as agent_id from DeepResearchAgent
-    SYSTEMNAME = Column(String(65535))
-    VOTES = Column(Integer)
-    RANK = Column(Integer)
-    ARENASCORE = Column(Float)
-    STEPUPVOTE_RATE = Column(Float)
-    TEXTUPVOTE_RATE = Column(Float)
-    ISLATEST = Column(Boolean)
-    LASTUPDATED = Column(sqlalchemy.TIMESTAMP, server_default=func.now())
 
 
 class DeepResearchAgent(Base):
@@ -66,3 +51,28 @@ class IntermediateStepVote(Base):
     agent_id = Column(String(128), nullable=False)
     vote = Column(String(10), nullable=False)
     intermediate_step = Column(Text, nullable=False)
+
+
+class ConversationHistory(Base):
+    __tablename__ = "conversation_history"
+    id = Column(
+        pgUUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    session_id = Column(pgUUID(as_uuid=True), nullable=False)
+    timestamp = Column(sqlalchemy.TIMESTAMP, server_default=func.now())
+    question = Column(Text, nullable=False)
+    agent_a_id = Column(String(128), nullable=False)  # agent_id like 'perplexity'
+    agent_a_name = Column(String(255), nullable=False)  # human readable name
+    agent_a_response = Column(Text, nullable=False)
+    agent_a_intermediate_steps = Column(Text)
+    agent_a_citations = Column(Text)  # JSON string of citations
+    agent_b_id = Column(String(128), nullable=False)
+    agent_b_name = Column(String(255), nullable=False)
+    agent_b_response = Column(Text, nullable=False)
+    agent_b_intermediate_steps = Column(Text)
+    agent_b_citations = Column(Text)  # JSON string of citations
+    agent_c_id = Column(String(128), nullable=False)
+    agent_c_name = Column(String(255), nullable=False)
+    agent_c_response = Column(Text, nullable=False)
+    agent_c_intermediate_steps = Column(Text)
+    agent_c_citations = Column(Text)  # JSON string of citations

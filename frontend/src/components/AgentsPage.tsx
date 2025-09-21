@@ -1,37 +1,29 @@
 import { useState, useEffect } from 'react';
 import { QuestionInput } from './QuestionInput';
-import { ChoiceButtons } from './ChoiceButtons';
-import { DeepResearchAgentDetails } from './AgentDetails.tsx';
-import { SessionData, ChoiceType, ChatHistory, ChatMessage } from '../types';
+import { SessionData, ChatHistory, ChatMessage, AgentInfo } from '../types';
 import { colors } from '../config/colors';
-import { streamResponse } from '../utils/streaming.ts';
+import { streamAgentsResponse } from '../utils/streamingAgents.ts';
 import { DeepResearchChatContainer } from './ChatContainer.tsx';
+import { useAuth } from '../contexts/AuthContext';
 
-interface AgentInfo {
-    name: string;
-    id: string;
-}
-
-export const DeepResearchPage = () => {
+export const AgentsPage = () => {
+    const { getAuthHeaders } = useAuth();
     const [sessionData, setSessionData] = useState<SessionData>({
         sessionId: null,
         currentQuestion: '',
         selectedChoice: '',
         selectedAgents: [],
     });
-    const [agentDetails, setAgentDetails] = useState<{ AgentA: AgentInfo | null, AgentB: AgentInfo | null }>({
-        AgentA: null,
-        AgentB: null,
-    });
+    const [agentInfo, setAgentInfo] = useState<AgentInfo[]>([]);
     const [isQuestionDisabled, setIsQuestionDisabled] = useState(true);
-    const [isChoiceDisabled, setIsChoiceDisabled] = useState(true);
-    const [hasAnswered, setHasAnswered] = useState(false);
     const [conversationHistory, setConversationHistory] = useState<{
         agentA: ChatHistory;
         agentB: ChatHistory;
+        agentC: ChatHistory;
     }>({
         agentA: { messages: [] },
-        agentB: { messages: [] }
+        agentB: { messages: [] },
+        agentC: { messages: [] }
     });
 
     useEffect(() => {
@@ -51,19 +43,18 @@ export const DeepResearchPage = () => {
                 return;
             }
 
-            // Store agent/embedding info in state, but we'll send it with each request
+            // Store agent/embedding info in state
             setSessionData(prev => ({ 
                 ...prev, 
                 selectedAgents: data.agents,
                 sessionId: data.session_id,
             }));
+            setAgentInfo(data.agents);
             setIsQuestionDisabled(false);
-            setIsChoiceDisabled(true);
-            setAgentDetails({ AgentA: null, AgentB: null });
-            setHasAnswered(false);
             setConversationHistory({
                 agentA: { messages: [] },
-                agentB: { messages: [] }
+                agentB: { messages: [] },
+                agentC: { messages: [] }
             });
         } catch (error) {
             console.error('Error fetching agents:', error);
@@ -73,7 +64,7 @@ export const DeepResearchPage = () => {
     const handleQuestionSubmit = async (question: string) => {
         setIsQuestionDisabled(true);
         try {
-            // Add user message to both conversation histories
+            // Add user message to all conversation histories
             const userMessage: ChatMessage = {
                 role: 'user',
                 content: [{ text: question }]
@@ -94,6 +85,12 @@ export const DeepResearchPage = () => {
                     intermediate_steps: '',
                     is_intermediate: true
                 };
+                const agentCMessage: ChatMessage = {
+                    role: 'assistant',
+                    content: [{ text: '' }],
+                    intermediate_steps: '',
+                    is_intermediate: true
+                };
 
                 const newState = {
                     agentA: {
@@ -101,25 +98,25 @@ export const DeepResearchPage = () => {
                     },
                     agentB: {
                         messages: [...prev.agentB.messages, userMessage, agentBMessage]
+                    },
+                    agentC: {
+                        messages: [...prev.agentC.messages, userMessage, agentCMessage]
                     }
                 };
 
                 return newState;
             });
             
-            // Prepare payload with conversation history and agent info
+            // Prepare payload for three agents
             const payload = {
                 question,
                 conversation_a: conversationHistory.agentA.messages,
                 conversation_b: conversationHistory.agentB.messages,
-                selected_agents: {
-                    agentA: sessionData.selectedAgents?.[0]?.id,
-                    agentB: sessionData.selectedAgents?.[1]?.id
-                }
+                conversation_c: conversationHistory.agentC.messages,
             };
             
             // Start streaming the response
-            await streamResponse(
+            await streamAgentsResponse(
                 `${import.meta.env.VITE_API_BASE_URL}/api/deepresearch-question`,
                 payload,
                 (chunk) => {                    
@@ -137,10 +134,7 @@ export const DeepResearchPage = () => {
                             if (assistantMsgIndex >= 0) {
                                 const assistantMsg = { ...agentAMessages[assistantMsgIndex] };
                                 
-                                // The backend sends agentA_final_report (final) and agentA_intermediate_steps (think) separately
-                                // The agentA_isIntermediate flag indicates which phase the agent is in.
                                 assistantMsg.content = [{ text: chunk.agentA.content || '' }];
-                                // Only update intermediate if new intermediate content is provided, preserve existing intermediate otherwise
                                 if (chunk.agentA.intermediate) {
                                     assistantMsg.intermediate_steps = chunk.agentA.intermediate;
                                 } else if (assistantMsg.intermediate_steps === undefined) {
@@ -166,10 +160,7 @@ export const DeepResearchPage = () => {
                             if (assistantMsgIndex >= 0) {
                                 const assistantMsg = { ...agentBMessages[assistantMsgIndex] };
 
-                                // The backend sends agentB_final_report (final) and agentB_intermediate_steps (think) separately
-                                // The agentB_isIntermediate flag indicates which phase the agent is in.
                                 assistantMsg.content = [{ text: chunk.agentB.content || '' }];
-                                // Only update intermediate if new intermediate content is provided, preserve existing intermediate otherwise
                                 if (chunk.agentB.intermediate) {
                                     assistantMsg.intermediate_steps = chunk.agentB.intermediate;
                                 } else if (assistantMsg.intermediate_steps === undefined) {
@@ -187,18 +178,39 @@ export const DeepResearchPage = () => {
                         });
                     }
                     
-                    // If this is the final chunk, enable the choice buttons
-                    if (chunk.is_final) {
-                        setIsChoiceDisabled(false);
-                        setHasAnswered(false);
-                    }
+                    // Update agent C content only if it was updated in this chunk
+                    if (chunk.agentC_updated) {                        
+                        setConversationHistory(prev => {
+                            const agentCMessages = [...prev.agentC.messages];
+                            const assistantMsgIndex = agentCMessages.length - 1;
+                            if (assistantMsgIndex >= 0) {
+                                const assistantMsg = { ...agentCMessages[assistantMsgIndex] };
 
-                    if (chunk.metadata) {
-                        const metadata = chunk.metadata as any;
-                        if (metadata.selected_agents) {
-                        }
+                                assistantMsg.content = [{ text: chunk.agentC.content || '' }];
+                                if (chunk.agentC.intermediate) {
+                                    assistantMsg.intermediate_steps = chunk.agentC.intermediate;
+                                } else if (assistantMsg.intermediate_steps === undefined) {
+                                    assistantMsg.intermediate_steps = '';
+                                }
+                                if (chunk.agentC.citations) {
+                                    assistantMsg.citations = chunk.agentC.citations;
+                                }
+                                assistantMsg.is_intermediate = chunk.agentC_is_intermediate;
+                                assistantMsg.is_complete = chunk.agentC_is_complete;
+                                
+                                agentCMessages[assistantMsgIndex] = assistantMsg;
+                            }
+                            return { ...prev, agentC: { messages: agentCMessages } };
+                        });
                     }
-                }
+                    
+                    // If this is the final chunk, save the conversation
+                    if (chunk.is_final) {
+                        // Save the conversation automatically
+                        saveConversation(question);
+                    }
+                },
+                getAuthHeaders()
             );
 
             console.log('Streaming complete');
@@ -209,38 +221,68 @@ export const DeepResearchPage = () => {
         }
     };
 
-    const handleChoice = async (choice: ChoiceType) => {
+    const saveConversation = async (question: string) => {
         try {
-            // Send all state to the backend in a stateless way
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/deepresearch-choice`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    choice,
-                    question : sessionData.currentQuestion,
-                    conversation_a: conversationHistory.agentA.messages,
-                    conversation_b: conversationHistory.agentB.messages,
-                    selected_agents: sessionData.selectedAgents,
-                    session_id: sessionData.sessionId,
-                }),
-            });
-            const data = await response.json();
-
-            if (data.error) {
-                console.error('Error:', data.error);
+            if (!sessionData.sessionId || !agentInfo.length || agentInfo.length < 3) {
+                console.log('Not enough data to save conversation');
                 return;
             }
 
-            // Update agent details with the response data
-            setAgentDetails({
-                AgentA: data.AgentA || null,
-                AgentB: data.AgentB || null,
+            // Get the latest responses from conversation history
+            const agentAMessages = conversationHistory.agentA.messages;
+            const agentBMessages = conversationHistory.agentB.messages;
+            const agentCMessages = conversationHistory.agentC.messages;
+            
+            // Find the latest assistant messages
+            const latestAgentAResponse = agentAMessages
+                .filter(msg => msg.role === 'assistant')
+                .pop();
+            const latestAgentBResponse = agentBMessages
+                .filter(msg => msg.role === 'assistant')
+                .pop();
+            const latestAgentCResponse = agentCMessages
+                .filter(msg => msg.role === 'assistant')
+                .pop();
+            
+            if (!latestAgentAResponse || !latestAgentBResponse || !latestAgentCResponse) {
+                console.log('Not all agent responses available for saving');
+                return;
+            }
+
+            const payload = {
+                session_id: sessionData.sessionId,
+                question: question,
+                agent_a_id: agentInfo[0].agent_id,
+                agent_a_name: agentInfo[0].name,
+                agent_a_response: latestAgentAResponse.content[0]?.text || '',
+                agent_a_intermediate_steps: latestAgentAResponse.intermediate_steps || '',
+                agent_a_citations: JSON.stringify(latestAgentAResponse.citations || []),
+                agent_b_id: agentInfo[1].agent_id,
+                agent_b_name: agentInfo[1].name,
+                agent_b_response: latestAgentBResponse.content[0]?.text || '',
+                agent_b_intermediate_steps: latestAgentBResponse.intermediate_steps || '',
+                agent_b_citations: JSON.stringify(latestAgentBResponse.citations || []),
+                agent_c_id: agentInfo[2].agent_id,
+                agent_c_name: agentInfo[2].name,
+                agent_c_response: latestAgentCResponse.content[0]?.text || '',
+                agent_c_intermediate_steps: latestAgentCResponse.intermediate_steps || '',
+                agent_c_citations: JSON.stringify(latestAgentCResponse.citations || [])
+            };
+
+            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/save-conversation`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload),
             });
-            setIsQuestionDisabled(true);
-            setIsChoiceDisabled(true);
-            setHasAnswered(true);
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                console.log('Conversation saved successfully');
+            } else {
+                console.error('Failed to save conversation:', data);
+            }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error saving conversation:', error);
         }
     };
 
@@ -250,25 +292,36 @@ export const DeepResearchPage = () => {
 
     return (
         <div className="w-full">
-            <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
                 {/* Agent A */}
                 <div className="flex flex-col space-y-4 pl-4">
-                    <h2 className="text-2xl font-bold text-center">Agent A</h2>
+                    <h2 className="text-2xl font-bold text-center">{agentInfo[0]?.name || 'Agent A'}</h2>
                     <DeepResearchChatContainer
                         history={conversationHistory.agentA}
                         agentId="agentA"
-                        agentUuid={sessionData.selectedAgents?.[0]?.id}
+                        agentUuid={agentInfo[0]?.id}
                         sessionId={sessionData.sessionId ?? undefined}
                     />
                 </div>
 
                 {/* Agent B */}
-                <div className="flex flex-col space-y-4 pr-4">
-                    <h2 className="text-2xl font-bold text-center">Agent B</h2>
+                <div className="flex flex-col space-y-4 px-2">
+                    <h2 className="text-2xl font-bold text-center">{agentInfo[1]?.name || 'Agent B'}</h2>
                     <DeepResearchChatContainer
                         history={conversationHistory.agentB}
                         agentId="agentB"
-                        agentUuid={sessionData.selectedAgents?.[1]?.id}
+                        agentUuid={agentInfo[1]?.id}
+                        sessionId={sessionData.sessionId ?? undefined}
+                    />
+                </div>
+
+                {/* Agent C */}
+                <div className="flex flex-col space-y-4 pr-4">
+                    <h2 className="text-2xl font-bold text-center">{agentInfo[2]?.name || 'Agent C'}</h2>
+                    <DeepResearchChatContainer
+                        history={conversationHistory.agentC}
+                        agentId="agentC"
+                        agentUuid={agentInfo[2]?.id}
                         sessionId={sessionData.sessionId ?? undefined}
                     />
                 </div>
@@ -279,22 +332,17 @@ export const DeepResearchPage = () => {
                     onSubmit={handleQuestionSubmit}
                     disabled={isQuestionDisabled}
                 />
-                <ChoiceButtons
-                    onChoice={handleChoice}
-                    disabled={isChoiceDisabled}
-                    hasAnswered={hasAnswered}
-                />
-                {hasAnswered && (
-                    <div className="mt-4">
-                        <DeepResearchAgentDetails details={agentDetails} />
-                    </div>
-                )}
+                
+                <div className="text-center text-gray-600">
+                    Compare responses from the three different LLM agents above
+                </div>
+                
                 <div className="flex justify-center mt-8">
                     <button
                         onClick={handleNewRound}
                         style={{ backgroundColor: colors.secondary }}
                         className="px-4 py-2 text-[#F9F7F7] rounded-md hover:bg-[#213555] focus:outline-none focus:ring-2 focus:ring-[#213555] focus:ring-offset-2 disabled:opacity-50"
-                        disabled={isChoiceDisabled && !hasAnswered}
+                        disabled={isQuestionDisabled}
                     >
                         Start New Round
                     </button>

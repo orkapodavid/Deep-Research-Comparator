@@ -28,11 +28,7 @@ from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from google import genai
 from google.genai import types
-from prompt import (
-    report_format_reminder_prompt,
-    summary_reminder_prompt,
-    report_prompt
-)
+from prompt import report_format_reminder_prompt, report_prompt, summary_reminder_prompt
 from retrieval import query_clueweb, query_serper
 
 app = Flask(__name__)
@@ -71,7 +67,8 @@ print(f"OPENAI_API_KEY: {'✓ SET' if OPENAI_API_KEY else '✗ NOT SET'}")
 print(f"PERPLEXITY_API_KEY: {'✓ SET' if PERPLEXITY_API_KEY else '✗ NOT SET'}")
 print(
     f"GOOGLE_CLOUD_REGION: {
-        '✓ SET' if LOCATION != 'us-central1' else '✓ DEFAULT (us-central1)'}")
+        '✓ SET' if LOCATION != 'us-central1' else '✓ DEFAULT (us-central1)'}"
+)
 print("=========================================================")
 
 ACTIONS = ["search", "answer", "plan", "scripts", "summary"]
@@ -306,7 +303,7 @@ class LLMAgent:
                 return None  # No <summary> or </summary> tag found
 
             # Extract content between the first <summary> and last </summary>
-            content = response[start_idx + len("<summary>"):end_idx].strip()
+            content = response[start_idx + len("<summary>") : end_idx].strip()
             return f"<summary>{content}</summary>"
 
         return None
@@ -378,7 +375,7 @@ class LLMAgent:
         if start_tag_open == -1 or start_tag_close == -1:
             raise ValueError(f"Invalid action format: {action}")
 
-        action_type = action[start_tag_open + 1: start_tag_close]
+        action_type = action[start_tag_open + 1 : start_tag_close]
 
         # Find the last occurrence of '</' and '>' to locate the closing tag
         end_tag_open = action.rfind("</")
@@ -387,7 +384,7 @@ class LLMAgent:
             raise ValueError(f"Invalid action format: {action}")
 
         # Extract content between the first '>' and last '</'
-        content = action[start_tag_close + 1: end_tag_open].strip()
+        content = action[start_tag_close + 1 : end_tag_open].strip()
 
         return action_type, content
 

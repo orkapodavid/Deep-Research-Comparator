@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 
 interface IntermediateDisplayProps {
     intermediateText: string;
-    agentId: 'agentA' | 'agentB';
+    agentId: 'agentA' | 'agentB' | 'agentC';
     isIntermediate?: boolean;
     agentUuid?: string;
     sessionId?: string;

@@ -4,7 +4,7 @@ import { colors } from '../config/colors';
 
 interface DeepResearchChatContainerProps {
     history: ChatHistory;
-    agentId: 'agentA' | 'agentB';
+    agentId: 'agentA' | 'agentB' | 'agentC';
     agentUuid?: string;
     sessionId?: string;
 }

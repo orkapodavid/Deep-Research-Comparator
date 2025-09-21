@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-import random
+import secrets
 import time
 import uuid
 from contextlib import contextmanager
@@ -12,21 +12,44 @@ import httpx
 import uvicorn
 from db_schema import (
     AnswerSpanVote,
+    ConversationHistory,
     DeepResearchAgent,
-    DeepresearchRankings,
     DeepResearchUserResponse,
     IntermediateStepVote,
 )
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import asc, create_engine
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 
 # Simple Deepresearch (Gemini 2.5 Flash) is referred to as baseline
+
+# Authentication configuration
+AUTH_USERNAME = os.getenv("AUTH_USERNAME", "admin")
+AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "password")
+
+security = HTTPBasic()
+
+
+def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
+    """Simple username/password authentication."""
+    is_correct_username = secrets.compare_digest(credentials.username, AUTH_USERNAME)
+    is_correct_password = secrets.compare_digest(credentials.password, AUTH_PASSWORD)
+
+    if not (is_correct_username and is_correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -59,7 +82,11 @@ print(f"DB_ENDPOINT: {'✓ SET' if DB_ENDPOINT else '✗ NOT SET'}")
 print(f"DB_NAME: {'✓ SET' if DB_NAME else '✗ NOT SET'}")
 print("======================================")
 
-DB_URI = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_ENDPOINT}:{DB_PORT}/{DB_NAME}?keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=5"
+DB_URI = (
+    f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_ENDPOINT}:"
+    f"{DB_PORT}/{DB_NAME}?keepalives=1&keepalives_idle=30"
+    f"&keepalives_interval=10&keepalives_count=5"
+)
 
 
 engine = create_engine(
@@ -108,20 +135,25 @@ async def health_check():
     return {"status": "ok"}
 
 
-def get_two_deep_research_agents():
+def get_all_deep_research_agents():
+    """Get all available deep research agents with their names."""
     with get_session() as dbSession:
-        rows = dbSession.query(DeepResearchAgent.agent_uuid).all()
-
-    if len(rows) < 2:
-        selected_rows = rows
-    else:
-        selected_rows = random.sample(rows, 2)
+        rows = dbSession.query(
+            DeepResearchAgent.agent_uuid,
+            DeepResearchAgent.agent_id,
+            DeepResearchAgent.agent_name,
+        ).all()
 
     selected_agents_dict = [
-        {"id": str(row[0])} for row in selected_rows  # Return UUID as a string
+        {
+            "id": str(row[0]),  # UUID as string
+            "agent_id": row[1],  # agent_id (perplexity, baseline, etc.)
+            "name": row[2],  # human-readable name
+        }
+        for row in rows
     ]
 
-    logger.debug(f"Selected deep research agents: {selected_agents_dict}")
+    logger.debug(f"Available deep research agents: {selected_agents_dict}")
     return selected_agents_dict
 
 
@@ -139,23 +171,27 @@ def return_system_name(agent_id):
 @app.get("/")
 async def index():
     # This route previously used render_template, which is Flask-specific.
-    # If serving an HTML file is needed, use FileResponse from fastapi.responses
+    # If serving an HTML file is needed, use FileResponse from
+    # fastapi.responses
     # from fastapi.responses import FileResponse
     # return FileResponse("path/to/your/index.html")
     # For now, returning a simple message or removing if not an API endpoint.
     return {
-        "message": "Welcome to DeepResearch Comparator API. See /docs for API documentation."
+        "message": (
+            "Welcome to DeepResearch Comparator API. "
+            "See /docs for API documentation."
+        )
     }
 
 
 @app.get("/api/deepresearch-agents")
 async def get_deep_research_agents_async():
-    """Get available deep research agents."""
-    selected_agents = get_two_deep_research_agents()
+    """Get all available deep research agents."""
+    all_agents = get_all_deep_research_agents()
     session_id = str(uuid.uuid4())
 
     return JSONResponse(
-        {"status": "success", "agents": selected_agents, "session_id": session_id}
+        {"status": "success", "agents": all_agents, "session_id": session_id}
     )
 
 
@@ -169,7 +205,7 @@ async def streaming_service_producer_gen(
     try:
         async with httpx.AsyncClient(timeout=2000.0) as client:
             logger.info(
-                f"Connecting to {service_name} service for question: {question}"
+                f"Connecting to {service_name} service for question: " f"{question}"
             )
             async with client.stream(
                 "POST", url, json={"question": question}
@@ -177,14 +213,16 @@ async def streaming_service_producer_gen(
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data:"):
-                        data_str = line[len("data:"):].strip()
+                        data_str = line[len("data:") :].strip()
                         if data_str:
                             try:
                                 data = json.loads(data_str)
                                 yield data
                             except json.JSONDecodeError:
                                 logger.error(
-                                    f"Failed to decode json from {service_name} stream: '{data_str}'")
+                                    f"Failed to decode json from "
+                                    f"{service_name} stream: '{data_str}'"
+                                )
     except Exception as e:
         error_msg = f"Error in {service_name} service producer: {e}"
         logger.error(error_msg, exc_info=True)
@@ -219,7 +257,8 @@ async def agent_task_worker(
     agent_type: str, agent_id_str: str, question: str, q: asyncio.Queue
 ):
     """
-    A worker that runs a producer generator and puts formatted results on the queue.
+    A worker that runs a producer generator and puts formatted results on
+    the queue.
     """
     # Map agent types to their service URLs and names
     service_config = {
@@ -235,7 +274,8 @@ async def agent_task_worker(
         await q.put((agent_id_str, None))
         return
 
-    # All services now return normalized responses, use the generic streaming producer
+    # All services now return normalized responses, use the generic
+    # streaming producer
     producer = streaming_service_producer_gen(
         url=config["url"], service_name=config["name"], question=question
     )
@@ -276,111 +316,100 @@ async def agent_task_worker(
 
 
 @app.post("/api/deepresearch-question")
-async def deep_research_question(request: Request):
+async def deep_research_question(
+    request: Request, username: str = Depends(authenticate)
+):
     """
-    Handles a deep research question by making calls to different agents based on request.
-    Supports both streaming (Perplexity) and non-streaming (baseline) responses.
+    Handles a deep research question by making calls to all three agents.
+    Supports both streaming (Perplexity) and non-streaming (baseline)
+    responses.
     """
     data = await request.json()
     question = data.get("question", "Tell me a fun fact about space.")
-    selected_agents = data.get("selected_agents", {})
 
-    if (
-        not selected_agents
-        or not isinstance(selected_agents, dict)
-        or "agentA" not in selected_agents
-        or "agentB" not in selected_agents
-    ):
+    # Get all available agents
+    all_agents = get_all_deep_research_agents()
+
+    if len(all_agents) < 3:
         raise HTTPException(
             status_code=400,
-            detail="Selected agents data is required and must contain agentA and agentB",
-        )
-
-    # The frontend now sends UUIDs. We need to look up the agent_id.
-    agent_a_uuid = selected_agents.get("agentA")
-    agent_b_uuid = selected_agents.get("agentB")
-
-    agent_a_id = get_agent_id_from_uuid(agent_a_uuid)
-    agent_b_id = get_agent_id_from_uuid(agent_b_uuid)
-
-    if not agent_a_id or not agent_b_id:
-        missing_agents = []
-        if not agent_a_id:
-            missing_agents.append(f"agentA (UUID: {agent_a_uuid})")
-        if not agent_b_id:
-            missing_agents.append(f"agentB (UUID: {agent_b_uuid})")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Could not find the following agent(s) in the database: {
-                ', '.join(missing_agents)}",
+            detail="Not enough agents available. Need at least 3 agents.",
         )
 
     q = asyncio.Queue()
 
     async def generate_agent_responses() -> AsyncGenerator[str, None]:
         logger.info(
-            f"Starting deep research for question: '{question}' using agent A: {agent_a_id}, agent B: {agent_b_id}"
+            f"Starting deep research for question: '{question}' using all "
+            f"available agents: {[agent['agent_id'] for agent in all_agents]}"
         )
 
         initial_metadata = {
             "metadata": {
-                "selected_agents": selected_agents,
-                "agentA_id": agent_a_uuid,
-                "agentB_id": agent_b_uuid,
+                "all_agents": all_agents,
             },
             "agentA_intermediate_steps": None,
             "agentB_intermediate_steps": None,
+            "agentC_intermediate_steps": None,
             "agentA_final_report": None,
             "agentB_final_report": None,
+            "agentC_final_report": None,
             "agentA_is_intermediate": False,
             "agentB_is_intermediate": False,
+            "agentC_is_intermediate": False,
             "agentA_is_complete": False,
             "agentB_is_complete": False,
+            "agentC_is_complete": False,
             "agentA_citations": [],
             "agentB_citations": [],
+            "agentC_citations": [],
             "agentA_updated": False,
             "agentB_updated": False,
+            "agentC_updated": False,
             "final": False,
         }
         yield json.dumps(initial_metadata) + "\n"
 
         # Create worker tasks for each agent
-        task_a = asyncio.create_task(
-            agent_task_worker(agent_a_id, "agentA", question, q)
-        )
-        task_b = asyncio.create_task(
-            agent_task_worker(agent_b_id, "agentB", question, q)
-        )
-        tasks = [task_a, task_b]
+        tasks = []
+        agent_labels = ["agentA", "agentB", "agentC"]
+
+        for i, agent in enumerate(all_agents[:3]):
+            task = asyncio.create_task(
+                agent_task_worker(agent["agent_id"], agent_labels[i], question, q)
+            )
+            tasks.append(task)
+
         active_producers = len(tasks)
 
         combined_state = {
             "agentA_intermediate_steps": None,
             "agentB_intermediate_steps": None,
+            "agentC_intermediate_steps": None,
             "agentA_final_report": None,
             "agentB_final_report": None,
+            "agentC_final_report": None,
             "agentA_is_intermediate": False,
             "agentB_is_intermediate": False,
+            "agentC_is_intermediate": False,
             "agentA_is_complete": False,
             "agentB_is_complete": False,
+            "agentC_is_complete": False,
             "agentA_citations": [],
             "agentB_citations": [],
+            "agentC_citations": [],
         }
 
         try:
             while active_producers > 0:
                 try:
-                    # Wait for an item from the queue, but with a timeout to allow for
-                    # heartbeats
+                    # Wait for an item from the queue, but with a timeout
                     source_agent_id, chunk_data = await asyncio.wait_for(
                         q.get(), timeout=15.0
                     )
                 except asyncio.TimeoutError:
-                    # If we time out, it means the agents are thinking. Send a
-                    # heartbeat.
-                    logger.debug(
-                        "No agent output for 15s, sending heartbeat to keep connection alive."
-                    )
+                    # Send heartbeat to keep connection alive
+                    logger.debug("No agent output for 15s, sending heartbeat.")
                     yield json.dumps(
                         {"heartbeat": True, "timestamp": time.time()}
                     ) + "\n"
@@ -392,75 +421,77 @@ async def deep_research_question(request: Request):
                     active_producers -= 1
                     if source_agent_id == "agentA":
                         combined_state["agentA_is_complete"] = True
-                    else:
+                    elif source_agent_id == "agentB":
                         combined_state["agentB_is_complete"] = True
+                    elif source_agent_id == "agentC":
+                        combined_state["agentC_is_complete"] = True
 
                     payload = combined_state.copy()
                     payload["agentA_updated"] = source_agent_id == "agentA"
                     payload["agentB_updated"] = source_agent_id == "agentB"
+                    payload["agentC_updated"] = source_agent_id == "agentC"
                     payload["final"] = active_producers == 0
 
                     yield json.dumps(payload) + "\n"
                     continue
 
-                # Update combined state from the formatted chunk_data
-                if "agentA_intermediate_steps" in chunk_data:
-                    combined_state["agentA_intermediate_steps"] = chunk_data[
-                        "agentA_intermediate_steps"
-                    ]
-                if "agentB_intermediate_steps" in chunk_data:
-                    combined_state["agentB_intermediate_steps"] = chunk_data[
-                        "agentB_intermediate_steps"
-                    ]
+                # Update combined state from chunk_data
+                for step_key in [
+                    "agentA_intermediate_steps",
+                    "agentB_intermediate_steps",
+                    "agentC_intermediate_steps",
+                ]:
+                    if step_key in chunk_data:
+                        combined_state[step_key] = chunk_data[step_key]
 
-                # If a final answer arrives, intermediate steps are over.
-                if "agentA_final_report" in chunk_data:
-                    combined_state["agentA_final_report"] = chunk_data[
-                        "agentA_final_report"
-                    ]
-                    combined_state["agentA_is_intermediate"] = False
-                if "agentB_final_report" in chunk_data:
-                    combined_state["agentB_final_report"] = chunk_data[
-                        "agentB_final_report"
-                    ]
-                    combined_state["agentB_is_intermediate"] = False
+                for report_key in [
+                    "agentA_final_report",
+                    "agentB_final_report",
+                    "agentC_final_report",
+                ]:
+                    if report_key in chunk_data:
+                        combined_state[report_key] = chunk_data[report_key]
+                        # Mark as no longer intermediate when final report arrives
+                        agent_prefix = report_key.split("_")[0]
+                        combined_state[f"{agent_prefix}_is_intermediate"] = False
 
-                if "agentA_is_intermediate" in chunk_data:
-                    combined_state["agentA_is_intermediate"] = chunk_data[
-                        "agentA_is_intermediate"
-                    ]
-                if "agentB_is_intermediate" in chunk_data:
-                    combined_state["agentB_is_intermediate"] = chunk_data[
-                        "agentB_is_intermediate"
-                    ]
+                for intermediate_key in [
+                    "agentA_is_intermediate",
+                    "agentB_is_intermediate",
+                    "agentC_is_intermediate",
+                ]:
+                    if intermediate_key in chunk_data:
+                        combined_state[intermediate_key] = chunk_data[intermediate_key]
 
-                if "agentA_citations" in chunk_data:
-                    combined_state["agentA_citations"] = chunk_data["agentA_citations"]
-                    logger.info(
-                        f"Forwarding {len(chunk_data['agentA_citations'])} citations for agent A to frontend."
-                    )
-                    logger.debug(f"agent A citations: {chunk_data['agentA_citations']}")
-                if "agentB_citations" in chunk_data:
-                    combined_state["agentB_citations"] = chunk_data["agentB_citations"]
-                    logger.info(
-                        f"Forwarding {len(chunk_data['agentB_citations'])} citations for agent B to frontend."
-                    )
-                    logger.debug(f"agent B citations: {chunk_data['agentB_citations']}")
+                for citation_key in [
+                    "agentA_citations",
+                    "agentB_citations",
+                    "agentC_citations",
+                ]:
+                    if citation_key in chunk_data:
+                        combined_state[citation_key] = chunk_data[citation_key]
+                        agent_letter = citation_key.split("_")[0][-1]  # Get A, B, or C
+                        logger.info(
+                            f"Forwarding {len(chunk_data[citation_key])} citations for agent {agent_letter}."
+                        )
 
                 payload = combined_state.copy()
                 payload["agentA_updated"] = source_agent_id == "agentA"
                 payload["agentB_updated"] = source_agent_id == "agentB"
+                payload["agentC_updated"] = source_agent_id == "agentC"
                 payload["is_final"] = False
 
                 yield json.dumps(payload) + "\n"
 
-            # Final yield to ensure frontend knows both are complete.
+            # Final yield to ensure frontend knows all are complete
             final_state = combined_state.copy()
             final_state["is_final"] = True
             final_state["agentA_is_complete"] = True
-            final_state["agentA_is_complete"] = True
+            final_state["agentB_is_complete"] = True
+            final_state["agentC_is_complete"] = True
             final_state["agentA_updated"] = False
             final_state["agentB_updated"] = False
+            final_state["agentC_updated"] = False
             yield json.dumps(final_state) + "\n"
         finally:
             logger.info("Cleaning up deep research tasks.")
@@ -648,51 +679,199 @@ async def intermediate_step_vote(request: Request):
     )
 
 
-@app.get("/api/ranking")
-async def ranking_async():
-    with get_session() as dbSession:
-        rows = (
-            dbSession.query(DeepresearchRankings.SYSTEMID)
-            .filter(DeepresearchRankings.ISLATEST)
-            .order_by(asc(DeepresearchRankings.RANK))
-            .all()
+@app.post("/api/save-conversation")
+async def save_conversation(request: Request, username: str = Depends(authenticate)):
+    """
+    Save a complete conversation with all three agents to the database.
+    """
+    data = await request.json()
+
+    required_fields = [
+        "session_id",
+        "question",
+        "agent_a_id",
+        "agent_a_name",
+        "agent_a_response",
+        "agent_b_id",
+        "agent_b_name",
+        "agent_b_response",
+        "agent_c_id",
+        "agent_c_name",
+        "agent_c_response",
+    ]
+
+    for field in required_fields:
+        if field not in data:
+            raise HTTPException(
+                status_code=400, detail=f"Missing required field: {field}"
+            )
+
+    try:
+        with get_session() as db_session:
+            conversation = ConversationHistory(
+                session_id=data["session_id"],
+                question=data["question"],
+                agent_a_id=data["agent_a_id"],
+                agent_a_name=data["agent_a_name"],
+                agent_a_response=data["agent_a_response"],
+                agent_a_intermediate_steps=data.get("agent_a_intermediate_steps"),
+                agent_a_citations=data.get("agent_a_citations"),
+                agent_b_id=data["agent_b_id"],
+                agent_b_name=data["agent_b_name"],
+                agent_b_response=data["agent_b_response"],
+                agent_b_intermediate_steps=data.get("agent_b_intermediate_steps"),
+                agent_b_citations=data.get("agent_b_citations"),
+                agent_c_id=data["agent_c_id"],
+                agent_c_name=data["agent_c_name"],
+                agent_c_response=data["agent_c_response"],
+                agent_c_intermediate_steps=data.get("agent_c_intermediate_steps"),
+                agent_c_citations=data.get("agent_c_citations"),
+            )
+            db_session.add(conversation)
+
+        logger.info(f"Saved conversation for session {data['session_id']}")
+        return JSONResponse(
+            {"status": "success", "message": "Conversation saved successfully"}
         )
-        rows_serial_number = []
-        for i in range(len(rows)):
-            rows_ranking = (
-                dbSession.query(
-                    DeepresearchRankings.RANK,
-                    DeepresearchRankings.SYSTEMNAME,
-                    DeepresearchRankings.ARENASCORE,
-                    DeepresearchRankings.VOTES,
-                    DeepresearchRankings.STEPUPVOTE_RATE,
-                    DeepresearchRankings.TEXTUPVOTE_RATE,
-                )
-                .filter(
-                    DeepresearchRankings.SYSTEMID == rows[i][0],
-                    DeepresearchRankings.ISLATEST
-                )
+
+    except Exception as e:
+        logger.error(f"Error saving conversation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to save conversation")
+
+
+@app.get("/api/conversation-history")
+async def get_conversation_history(
+    page: int = 1, page_size: int = 10, username: str = Depends(authenticate)
+):
+    """
+    Get paginated conversation history.
+    """
+    offset = (page - 1) * page_size
+
+    try:
+        with get_session() as db_session:
+            conversations = (
+                db_session.query(ConversationHistory)
+                .order_by(ConversationHistory.timestamp.desc())
+                .offset(offset)
+                .limit(page_size)
                 .all()
             )
-            assert len(rows_ranking) == 1
-            rows_serial_number.append(rows_ranking[0])
 
-        return JSONResponse(
-            {
-                "status": "success",
-                "ranking": [
+            total_count = db_session.query(ConversationHistory).count()
+
+            result = []
+            for conv in conversations:
+                result.append(
                     {
-                        "rank": item[0],
-                        "systemname": item[1],
-                        "score": item[2],
-                        "votes": item[3],
-                        "stepupvote": item[4],
-                        "textupvote": item[5],
+                        "id": str(conv.id),
+                        "session_id": str(conv.session_id),
+                        "timestamp": conv.timestamp.isoformat(),
+                        "question": conv.question,
+                        "agents": [
+                            {
+                                "id": conv.agent_a_id,
+                                "name": conv.agent_a_name,
+                                "response": conv.agent_a_response,
+                                "intermediate_steps": conv.agent_a_intermediate_steps,
+                                "citations": conv.agent_a_citations,
+                            },
+                            {
+                                "id": conv.agent_b_id,
+                                "name": conv.agent_b_name,
+                                "response": conv.agent_b_response,
+                                "intermediate_steps": conv.agent_b_intermediate_steps,
+                                "citations": conv.agent_b_citations,
+                            },
+                            {
+                                "id": conv.agent_c_id,
+                                "name": conv.agent_c_name,
+                                "response": conv.agent_c_response,
+                                "intermediate_steps": conv.agent_c_intermediate_steps,
+                                "citations": conv.agent_c_citations,
+                            },
+                        ],
                     }
-                    for item in rows_serial_number
+                )
+
+            return JSONResponse(
+                {
+                    "status": "success",
+                    "conversations": result,
+                    "pagination": {
+                        "page": page,
+                        "page_size": page_size,
+                        "total_count": total_count,
+                        "total_pages": (total_count + page_size - 1) // page_size,
+                    },
+                }
+            )
+
+    except Exception as e:
+        logger.error(f"Error retrieving conversation history: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve conversation history"
+        )
+
+
+@app.get("/api/conversation/{conversation_id}")
+async def get_conversation_by_id(conversation_id: str):
+    """
+    Get a specific conversation by ID.
+    """
+    try:
+        conversation_uuid = uuid.UUID(conversation_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid conversation ID format")
+
+    try:
+        with get_session() as db_session:
+            conversation = (
+                db_session.query(ConversationHistory)
+                .filter(ConversationHistory.id == conversation_uuid)
+                .first()
+            )
+
+            if not conversation:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+
+            result = {
+                "id": str(conversation.id),
+                "session_id": str(conversation.session_id),
+                "timestamp": conversation.timestamp.isoformat(),
+                "question": conversation.question,
+                "agents": [
+                    {
+                        "id": conversation.agent_a_id,
+                        "name": conversation.agent_a_name,
+                        "response": conversation.agent_a_response,
+                        "intermediate_steps": conversation.agent_a_intermediate_steps,
+                        "citations": conversation.agent_a_citations,
+                    },
+                    {
+                        "id": conversation.agent_b_id,
+                        "name": conversation.agent_b_name,
+                        "response": conversation.agent_b_response,
+                        "intermediate_steps": conversation.agent_b_intermediate_steps,
+                        "citations": conversation.agent_b_citations,
+                    },
+                    {
+                        "id": conversation.agent_c_id,
+                        "name": conversation.agent_c_name,
+                        "response": conversation.agent_c_response,
+                        "intermediate_steps": conversation.agent_c_intermediate_steps,
+                        "citations": conversation.agent_c_citations,
+                    },
                 ],
             }
-        )
+
+            return JSONResponse({"status": "success", "conversation": result})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving conversation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve conversation")
 
 
 if __name__ == "__main__":

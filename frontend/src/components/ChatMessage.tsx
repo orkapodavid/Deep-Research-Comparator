@@ -7,15 +7,17 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Citations } from './Citations';
 import { Citation } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DeepResearchChatMessageProps {
     message: ChatMessageType;
-    agentId?: 'agentA' | 'agentB';
+    agentId?: 'agentA' | 'agentB' | 'agentC';
     agentUuid?: string;
     sessionId?: string;
 }
 
 export const DeepResearchChatMessage = ({ message, agentId, agentUuid, sessionId }: DeepResearchChatMessageProps) => {
+    const { getAuthHeaders } = useAuth();
     const isUser = message.role === 'user';
     const bgColor = isUser ? colors.secondary : colors.light;
     const messageRef = useRef<HTMLDivElement>(null);
@@ -110,9 +112,7 @@ export const DeepResearchChatMessage = ({ message, agentId, agentUuid, sessionId
         try {
             const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/answer-span-vote`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(payload),
             });
 

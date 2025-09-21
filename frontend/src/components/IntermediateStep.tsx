@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useAuth } from '../contexts/AuthContext';
 
 interface IntermediateStepProps {
   text: string;
   index: number;
-  agentId: 'agentA' | 'agentB';
+  agentId: 'agentA' | 'agentB' | 'agentC';
   isLastStep?: boolean;
   agentUuid?: string;
   sessionId?: string;
 }
 
 export const PerplexityIntermediateStep: React.FC<IntermediateStepProps> = ({ text, index, agentId, isLastStep = false, agentUuid, sessionId }) => {
+  const { getAuthHeaders } = useAuth();
   const [isHovered, setIsHovered] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
 
@@ -38,9 +40,7 @@ export const PerplexityIntermediateStep: React.FC<IntermediateStepProps> = ({ te
     try {
         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/intermediate-step-vote`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(payload),
         });
 

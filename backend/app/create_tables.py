@@ -2,8 +2,8 @@ import os
 
 from db_schema import (
     AnswerSpanVote,
+    ConversationHistory,
     DeepResearchAgent,
-    DeepresearchRankings,
     DeepResearchUserResponse,
     IntermediateStepVote,
 )
@@ -26,11 +26,11 @@ engine = create_engine(DB_URI, echo=False)
 
 Base = declarative_base()
 
-DeepResearchAgent.__table__.create(bind=engine)
-DeepResearchUserResponse.__table__.create(bind=engine)
-AnswerSpanVote.__table__.create(bind=engine)
-IntermediateStepVote.__table__.create(bind=engine)
-DeepresearchRankings.__table__.create(bind=engine)
+DeepResearchAgent.__table__.create(bind=engine, checkfirst=True)
+DeepResearchUserResponse.__table__.create(bind=engine, checkfirst=True)
+AnswerSpanVote.__table__.create(bind=engine, checkfirst=True)
+IntermediateStepVote.__table__.create(bind=engine, checkfirst=True)
+ConversationHistory.__table__.create(bind=engine, checkfirst=True)
 
 
 md = MetaData()

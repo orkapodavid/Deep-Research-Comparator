@@ -1,4 +1,3 @@
-from perplexity_client import stream_perplexity_api
 import json
 import logging
 import os
@@ -9,6 +8,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from perplexity_client import stream_perplexity_api
 
 # Load environment variables from parent directory
 load_dotenv("../../.env")  # Load from parent directory .env file
@@ -192,7 +192,6 @@ async def perplexity_producer_gen(
                     payload["citations"] = all_citations
 
             yield payload
-
 
     except Exception as e:
         error_msg = f"Error in perplexity_producer_gen: {e}"

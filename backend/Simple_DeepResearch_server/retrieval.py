@@ -210,7 +210,7 @@ def match_outlinks_to_doc(outlinks, doc_text):
             doc_text = (
                 doc_text[:idx]
                 + f"[{anchor_text}]({url})"
-                + doc_text[idx + len(anchor_text):]
+                + doc_text[idx + len(anchor_text) :]
             )
         else:
             exact_match_not_found += 1
