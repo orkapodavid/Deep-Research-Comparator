@@ -57,10 +57,6 @@ Before running the application manually, you need to set up the PostgreSQL datab
    ```bash
    python insert_databases.py
    ```
-5. **Generate initial rankings** (optional, can be done after collecting some data):
-   ```bash
-   python rankings.py
-   ```
 
 
 ## ⚙️ Backend - Environment Setup

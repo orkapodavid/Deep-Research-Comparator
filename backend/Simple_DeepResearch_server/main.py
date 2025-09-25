@@ -66,8 +66,7 @@ print(f"SERPER_API_KEY: {'✓ SET' if SERPER_API_KEY else '✗ NOT SET'}")
 print(f"OPENAI_API_KEY: {'✓ SET' if OPENAI_API_KEY else '✗ NOT SET'}")
 print(f"PERPLEXITY_API_KEY: {'✓ SET' if PERPLEXITY_API_KEY else '✗ NOT SET'}")
 print(
-    f"GOOGLE_CLOUD_REGION: {
-        '✓ SET' if LOCATION != 'us-central1' else '✓ DEFAULT (us-central1)'}"
+    f"GOOGLE_CLOUD_REGION: {'✓ SET' if LOCATION != 'us-central1' else '✓ DEFAULT (us-central1)'}"
 )
 print("=========================================================")
 
@@ -414,11 +413,9 @@ class LLMAgent:
 
         # add reminder for search and final report
         if self.consecutive_search_cnt > self.config["search_reminder_turn"]:
-            new_input += f"\n\nNote: You have performed {
-                self.consecutive_search_cnt} search actions. Please consider update your report scripts or output the final report. If you still want to search, make sure you check history search results and DO NOT perform duplicate search."
+            new_input += f"\n\nNote: You have performed {self.consecutive_search_cnt} search actions. Please consider update your report scripts or output the final report. If you still want to search, make sure you check history search results and DO NOT perform duplicate search."
         if self.num_env_steps > self.config["final_report_reminder_turn"]:
-            new_input += f"\n\nNote: You have performed {
-                self.num_env_steps} turns. Please consider output the final report. If you still want to search, make sure you check history search results and DO NOT perform duplicate search."
+            new_input += f"\n\nNote: You have performed {self.num_env_steps} turns. Please consider output the final report. If you still want to search, make sure you check history search results and DO NOT perform duplicate search."
 
         input_length = len(new_input)
         if input_length > MAX_CONTEXT_LENGTH:

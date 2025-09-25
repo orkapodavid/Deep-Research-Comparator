@@ -548,8 +548,7 @@ async def deep_research_choice(request: Request):
                 missing_agents.append(f"agentB (UUID: {agent_b_uuid})")
             raise HTTPException(
                 status_code=404,
-                detail=f"Could not find the following agent(s) in the database: {
-                    ', '.join(missing_agents)}",
+                detail=f"Could not find the following agent(s) in the database: {', '.join(missing_agents)}",
             )
 
         # Generate the UUID before creating the database object
